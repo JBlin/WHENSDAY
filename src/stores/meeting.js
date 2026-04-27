@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { supabase } from '../lib/supabase.js'
+import {
+  assertSupabaseConfigured,
+  SUPABASE_CONFIG_ERROR_MESSAGE,
+  supabase,
+} from '../lib/supabase.js'
 
 export const useMeetingStore = defineStore('meeting', () => {
   const meeting = ref(null)
@@ -11,6 +15,10 @@ export const useMeetingStore = defineStore('meeting', () => {
   function buildSupabaseError(err, table, action) {
     if (!err) {
       return new Error('알 수 없는 오류가 발생했어요.')
+    }
+
+    if (err.message === SUPABASE_CONFIG_ERROR_MESSAGE) {
+      return err
     }
 
     if (err.code === '42501') {
@@ -25,6 +33,12 @@ export const useMeetingStore = defineStore('meeting', () => {
       )
     }
 
+    if (err instanceof TypeError && /Failed to fetch/i.test(err.message || '')) {
+      return new Error(
+        'Supabase에 연결하지 못했어요.\nVercel 환경 변수(VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY)가 올바르게 들어갔는지 확인하고 다시 배포해 주세요.'
+      )
+    }
+
     return new Error(err.message || 'Supabase 요청에 실패했어요.')
   }
 
@@ -33,6 +47,8 @@ export const useMeetingStore = defineStore('meeting', () => {
     error.value = null
 
     try {
+      assertSupabaseConfigured()
+
       const { data, error: err } = await supabase
         .from('meetings')
         .select('*')
@@ -42,28 +58,36 @@ export const useMeetingStore = defineStore('meeting', () => {
       if (err) throw buildSupabaseError(err, 'meetings', 'select')
       meeting.value = data
     } catch (e) {
-      error.value = e.message
+      error.value = buildSupabaseError(e, 'meetings', 'select').message
     } finally {
       loading.value = false
     }
   }
 
   async function fetchResponses(meetingId) {
-    const { data, error: err } = await supabase
-      .from('responses')
-      .select('*')
-      .eq('meeting_id', meetingId)
-      .order('created_at')
+    try {
+      assertSupabaseConfigured()
 
-    if (err) {
-      error.value = buildSupabaseError(err, 'responses', 'select').message
-      return
+      const { data, error: err } = await supabase
+        .from('responses')
+        .select('*')
+        .eq('meeting_id', meetingId)
+        .order('created_at')
+
+      if (err) {
+        error.value = buildSupabaseError(err, 'responses', 'select').message
+        return
+      }
+
+      responses.value = data
+    } catch (e) {
+      error.value = buildSupabaseError(e, 'responses', 'select').message
     }
-
-    responses.value = data
   }
 
   async function createMeeting(title, dateFrom, dateTo) {
+    assertSupabaseConfigured()
+
     const newMeeting = {
       id: crypto.randomUUID(),
       title,
@@ -71,23 +95,33 @@ export const useMeetingStore = defineStore('meeting', () => {
       date_to: dateTo,
     }
 
-    const { error: err } = await supabase
-      .from('meetings')
-      .insert(newMeeting)
+    try {
+      const { error: err } = await supabase
+        .from('meetings')
+        .insert(newMeeting)
 
-    if (err) throw buildSupabaseError(err, 'meetings', 'insert')
-    return newMeeting
+      if (err) throw buildSupabaseError(err, 'meetings', 'insert')
+      return newMeeting
+    } catch (e) {
+      throw buildSupabaseError(e, 'meetings', 'insert')
+    }
   }
 
   async function submitResponse(meetingId, name, availableDates) {
-    const { error: err } = await supabase
-      .from('responses')
-      .upsert(
-        { meeting_id: meetingId, name, available_dates: availableDates },
-        { onConflict: 'meeting_id,name' }
-      )
+    assertSupabaseConfigured()
 
-    if (err) throw buildSupabaseError(err, 'responses', 'update')
+    try {
+      const { error: err } = await supabase
+        .from('responses')
+        .upsert(
+          { meeting_id: meetingId, name, available_dates: availableDates },
+          { onConflict: 'meeting_id,name' }
+        )
+
+      if (err) throw buildSupabaseError(err, 'responses', 'update')
+    } catch (e) {
+      throw buildSupabaseError(e, 'responses', 'update')
+    }
   }
 
   function reset() {
