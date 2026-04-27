@@ -168,7 +168,10 @@ async function submit() {
     hasVoted.value = true
     markMeetingAsVoted(route.params.id)
     showToast('제출 완료! 결과 화면으로 이동할게요.')
-    setTimeout(() => router.push(`/meeting/${route.params.id}/result`), 1500)
+    await router.push({
+      path: `/meeting/${route.params.id}/result`,
+      query: { submitted: '1' },
+    })
   } catch (error) {
     showToast(error?.message || '제출에 실패했어요. 다시 시도해 주세요.', 'error')
   } finally {

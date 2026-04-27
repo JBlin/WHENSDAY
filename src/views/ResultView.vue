@@ -147,6 +147,11 @@ onMounted(async () => {
     await store.fetchResponses(route.params.id)
     subscribeRealtime()
   }
+
+  if (route.query.submitted === '1') {
+    showToast('제출 완료! 결과를 바로 확인해 보세요.')
+    router.replace(`/meeting/${route.params.id}/result`)
+  }
 })
 
 onUnmounted(() => {
