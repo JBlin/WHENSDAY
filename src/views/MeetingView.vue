@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-50 flex flex-col">
+  <div class="min-h-screen bg-white flex flex-col">
     <header class="bg-white px-5 pt-5 pb-4 shadow-sm sticky top-0 z-10">
       <div class="flex items-center gap-3">
         <RouterLink to="/" class="text-lg font-black tracking-widest text-primary uppercase shrink-0">W</RouterLink>
