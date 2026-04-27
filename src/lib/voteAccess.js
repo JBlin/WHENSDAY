@@ -1,4 +1,4 @@
-const STORAGE_PREFIX = 'whensday:voted:'
+const STORAGE_PREFIX = 'setdate:voted:'
 
 function getStorageKey(meetingId) {
   return `${STORAGE_PREFIX}${meetingId}`

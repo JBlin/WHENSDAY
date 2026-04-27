@@ -1,4 +1,4 @@
-# WHENSDAY
+# SetDate (셋데이트)
 
 친구들과 가능한 날짜를 빠르게 조율하는 Vue 3 + Supabase 앱입니다.
 

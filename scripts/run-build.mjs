@@ -18,7 +18,7 @@ if (process.platform === 'win32' && existsSync(localBuildScript)) {
   command = process.execPath
   args = [localVite, 'build', ...userArgs]
 } else {
-  console.error('[WHENSDAY] Vite를 찾을 수 없습니다. npm install로 의존성을 먼저 설치해 주세요.')
+  console.error('[SetDate] Vite를 찾을 수 없습니다. npm install로 의존성을 먼저 설치해 주세요.')
   process.exit(1)
 }
 

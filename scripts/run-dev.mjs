@@ -21,7 +21,7 @@ if (existsSync(localVite)) {
   args = ['-ExecutionPolicy', 'Bypass', '-File', fallbackScript, ...userArgs]
 } else {
   console.error(
-    '[WHENSDAY] Vite를 찾을 수 없습니다. 로컬 node_modules를 설치하거나 C:\\WhensDay_modules 우회 환경을 준비해 주세요.'
+    '[SetDate] Vite를 찾을 수 없습니다. 로컬 node_modules를 설치하거나 C:\\WhensDay_modules 우회 환경을 준비해 주세요.'
   )
   process.exit(1)
 }

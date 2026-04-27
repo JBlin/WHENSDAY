@@ -88,7 +88,7 @@ Register-ObjectEvent $watcher Renamed -SourceIdentifier 'WD_RENAMED' -Action $ac
 Register-ObjectEvent $watcher Deleted -SourceIdentifier 'WD_DELETED' -Action $action | Out-Null
 
 Write-Host ''
-Write-Host 'WHENSDAY dev server  -> http://localhost:5173' -ForegroundColor Magenta
+Write-Host 'SetDate dev server  -> http://localhost:5173' -ForegroundColor Magenta
 Write-Host '(Ctrl+C to stop)' -ForegroundColor Gray
 Write-Host ''
 
