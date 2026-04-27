@@ -42,7 +42,7 @@
       </div>
     </div>
 
-    <div v-else-if="store.meeting" class="flex-1 flex flex-col">
+    <div v-else-if="store.meeting" class="flex-1 flex flex-col pb-28">
       <div v-if="submitted" class="bg-green-50 border-b border-green-100 px-5 py-3">
         <p class="text-sm text-green-700 font-medium">제출 완료! 같은 이름으로 다시 제출하면 내용이 업데이트돼요.</p>
       </div>
@@ -72,7 +72,7 @@
         </div>
       </div>
 
-      <div class="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-4 safe-bottom">
+      <div class="fixed bottom-0 left-0 right-0 z-20 max-w-[430px] mx-auto bg-white border-t border-gray-100 px-5 py-4 safe-bottom shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
         <button
           @click="submit"
           :disabled="!name.trim() || !selectedDates.length || submitting"
@@ -154,7 +154,7 @@ function showToast(message, type = 'success') {
   toastVisible.value = true
   setTimeout(() => {
     toastVisible.value = false
-  }, 2500)
+  }, 2800)
 }
 
 async function submit() {
@@ -170,7 +170,7 @@ async function submit() {
     showToast('제출 완료! 결과 화면으로 이동할게요.')
     setTimeout(() => router.push(`/meeting/${route.params.id}/result`), 1500)
   } catch (error) {
-    showToast('제출에 실패했어요. 다시 시도해 주세요.', 'error')
+    showToast(error?.message || '제출에 실패했어요. 다시 시도해 주세요.', 'error')
   } finally {
     submitting.value = false
   }

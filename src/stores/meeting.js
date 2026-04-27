@@ -22,20 +22,20 @@ export const useMeetingStore = defineStore('meeting', () => {
     }
 
     if (err.code === '42501') {
-      const actionLabel = action === 'insert'
-        ? 'insert'
-        : action === 'update'
-          ? 'update'
-          : 'select'
+      if (table === 'responses') {
+        return new Error(
+          '응답 제출 권한이 아직 설정되지 않았어요.\nSupabase SQL Editor에서 responses 테이블의 select / insert / update 정책을 추가한 뒤 다시 시도해 주세요.'
+        )
+      }
 
       return new Error(
-        `Supabase 권한 설정이 아직 완료되지 않았어요. ${table} 테이블의 ${actionLabel} 정책을 추가한 뒤 다시 시도해 주세요. README의 SQL 예시를 Supabase SQL Editor에서 실행하면 됩니다.`
+        `Supabase 권한 설정이 아직 완료되지 않았어요.\n${table} 테이블의 ${action} 정책을 확인한 뒤 다시 시도해 주세요.`
       )
     }
 
     if (err instanceof TypeError && /Failed to fetch/i.test(err.message || '')) {
       return new Error(
-        'Supabase에 연결하지 못했어요.\nVercel 환경 변수(VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY)가 올바르게 들어갔는지 확인하고 다시 배포해 주세요.'
+        'Supabase에 연결하지 못했어요.\nVercel 환경 변수 VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY가 올바른지 확인해 주세요.'
       )
     }
 
@@ -118,9 +118,9 @@ export const useMeetingStore = defineStore('meeting', () => {
           { onConflict: 'meeting_id,name' }
         )
 
-      if (err) throw buildSupabaseError(err, 'responses', 'update')
+      if (err) throw buildSupabaseError(err, 'responses', 'upsert')
     } catch (e) {
-      throw buildSupabaseError(e, 'responses', 'update')
+      throw buildSupabaseError(e, 'responses', 'upsert')
     }
   }
 

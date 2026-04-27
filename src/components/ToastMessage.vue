@@ -5,11 +5,11 @@
       class="fixed top-5 left-1/2 -translate-x-1/2 z-50 max-w-[360px] w-[90%]"
     >
       <div
-        class="flex items-center gap-3 px-4 py-3 rounded-btn shadow-lg text-white text-sm font-medium"
+        class="flex items-start gap-3 px-4 py-3 rounded-btn shadow-lg text-white text-sm font-medium"
         :class="bgClass"
       >
-        <span class="text-base">{{ icon }}</span>
-        <span>{{ message }}</span>
+        <span class="text-base leading-none pt-0.5">{{ icon }}</span>
+        <span class="whitespace-pre-line leading-snug">{{ message }}</span>
       </div>
     </div>
   </Transition>
