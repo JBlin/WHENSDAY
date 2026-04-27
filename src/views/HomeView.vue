@@ -116,11 +116,15 @@
       </div>
     </div>
   </Transition>
+
+  <ToastMessage :visible="toastVisible" :message="toastMsg" :type="toastType" />
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import ToastMessage from '../components/ToastMessage.vue'
+import { buildMeetingUrl, copyText } from '../lib/share.js'
 import { useMeetingStore } from '../stores/meeting.js'
 
 const router = useRouter()
@@ -136,6 +140,9 @@ const shareVisible = ref(false)
 const shareUrl = ref('')
 const copied = ref(false)
 const createdId = ref('')
+const toastVisible = ref(false)
+const toastMsg = ref('')
+const toastType = ref('success')
 
 function formatLocalDate(date) {
   const year = date.getFullYear()
@@ -182,7 +189,7 @@ async function create() {
   try {
     const meeting = await store.createMeeting(title.value.trim(), dateFrom.value, dateTo.value)
     createdId.value = meeting.id
-    shareUrl.value = `${window.location.origin}/meeting/${meeting.id}`
+    shareUrl.value = buildMeetingUrl(meeting.id)
     shareVisible.value = true
   } catch (error) {
     console.error('[SetDate] failed to create meeting', error)
@@ -194,18 +201,28 @@ async function create() {
 
 async function copyLink() {
   try {
-    await navigator.clipboard.writeText(shareUrl.value)
+    await copyText(shareUrl.value)
     copied.value = true
+    showToast('링크를 복사했어요. 친구들에게 바로 보내 보세요.')
     setTimeout(() => {
       copied.value = false
     }, 2000)
-  } catch {
-    // Clipboard API is not available in every browser context.
+  } catch (error) {
+    showToast(error?.message || '링크 복사에 실패했어요. 직접 복사해 주세요.', 'error')
   }
 }
 
 function goToMeeting() {
   router.push(`/meeting/${createdId.value}`)
+}
+
+function showToast(message, type = 'success') {
+  toastMsg.value = message
+  toastType.value = type
+  toastVisible.value = true
+  setTimeout(() => {
+    toastVisible.value = false
+  }, 2500)
 }
 
 const steps = [

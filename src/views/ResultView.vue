@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-white flex flex-col">
     <header class="bg-white px-5 pt-5 pb-4 shadow-sm sticky top-0 z-10">
       <div class="flex items-center gap-3">
-        <RouterLink to="/" class="text-lg font-black tracking-widest text-primary uppercase shrink-0">W</RouterLink>
+        <RouterLink to="/" class="text-lg font-black tracking-widest text-primary uppercase shrink-0">S</RouterLink>
         <div class="flex-1 min-w-0">
           <p v-if="store.meeting" class="text-sm font-bold text-gray-900 truncate">{{ store.meeting.title }}</p>
           <div class="flex items-center gap-2 mt-0.5">
@@ -27,7 +27,7 @@
 
     <div v-else-if="store.error" class="flex-1 flex items-center justify-center px-5">
       <div class="text-center">
-        <p class="text-xl font-bold text-gray-800 mb-2">약속을 찾을 수 없어요.</p>
+        <p class="text-xl font-bold text-gray-800 mb-2">약속을 찾을 수 없어요</p>
         <RouterLink to="/" class="mt-4 inline-block text-primary font-semibold text-sm">처음으로 가기</RouterLink>
       </div>
     </div>
@@ -113,6 +113,7 @@ import BestDateCard from '../components/BestDateCard.vue'
 import HeatmapCalendar from '../components/HeatmapCalendar.vue'
 import ParticipantSheet from '../components/ParticipantSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
+import { buildMeetingUrl, copyText } from '../lib/share.js'
 import { hasVotedForMeeting } from '../lib/voteAccess.js'
 import { supabase } from '../lib/supabase.js'
 import { useMeetingStore } from '../stores/meeting.js'
@@ -171,17 +172,17 @@ function openSheet(date) {
 }
 
 async function copyLink() {
-  const url = `${window.location.origin}/meeting/${route.params.id}`
+  const url = buildMeetingUrl(route.params.id)
 
   try {
-    await navigator.clipboard.writeText(url)
+    await copyText(url)
     copied.value = true
     showToast('링크 복사 완료! 친구들에게 보내 보세요.')
     setTimeout(() => {
       copied.value = false
     }, 2000)
-  } catch {
-    showToast('복사에 실패했어요. 링크를 직접 복사해 주세요.', 'error')
+  } catch (error) {
+    showToast(error?.message || '복사에 실패했어요. 링크를 직접 복사해 주세요.', 'error')
   }
 }
 
