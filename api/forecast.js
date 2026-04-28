@@ -1,16 +1,12 @@
 import {
-  DEFAULT_FORECAST_REGION,
-  DEFAULT_SEA_AREA,
-  LAND_REGION_MAP,
-  SEA_AREA_MAP,
+  DEFAULT_TEMPERATURE_REGION_CODE,
+  DEFAULT_WEATHER_REGION_CODE,
 } from '../src/lib/forecastConfig.js'
 
 const KMA_BASE_URL = 'https://apis.data.go.kr/1360000/MidFcstInfoService'
-const FISHING_BASE_URL = 'https://apis.data.go.kr/1192136/fcstFishingv2/GetFcstFishingApiServicev2'
 const FORECAST_DAY_RANGE = [4, 5, 6, 7, 8, 9, 10]
 const KMA_NO_DATA_CODE = '03'
 const KMA_INVALID_KEY_CODE = '30'
-const FISHING_INVALID_KEY_CODE = '22'
 
 function getKstParts(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -19,7 +15,6 @@ function getKstParts(now = new Date()) {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit',
     hour12: false,
   }).formatToParts(now)
 
@@ -35,9 +30,7 @@ function getLatestTmFc(now = new Date()) {
   const currentHour = Number(parts.hour)
 
   if (currentHour < 6) {
-    const previousDate = new Date(
-      Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day))
-    )
+    const previousDate = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)))
     previousDate.setUTCDate(previousDate.getUTCDate() - 1)
 
     return formatTmFc(
@@ -76,26 +69,6 @@ function getPreviousTmFc(tmFc) {
   )
 }
 
-function getKstDateCompact(now = new Date()) {
-  const parts = getKstParts(now)
-  return `${parts.year}${parts.month}${parts.day}`
-}
-
-function toNumber(value) {
-  if (value === '' || value == null) return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
-function normalizeDateString(value) {
-  if (!value) return ''
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
-  if (/^\d{8}$/.test(value)) {
-    return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
-  }
-  return ''
-}
-
 function createApiError(status, message, details = {}) {
   const error = new Error(message)
   error.status = status
@@ -103,12 +76,23 @@ function createApiError(status, message, details = {}) {
   return error
 }
 
-function extractKmaItems(payload) {
-  const items = payload?.response?.body?.items?.item
+function parseJsonSafely(text) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
 
-  if (Array.isArray(items)) return items
-  if (items) return [items]
-  return []
+function toNumber(value) {
+  if (value === '' || value == null || value === '-') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function extractItems(payload) {
+  const items = payload?.response?.body?.items?.item
+  return Array.isArray(items) ? items : items ? [items] : []
 }
 
 function logKmaError(endpoint, tmFc, header, extra = {}) {
@@ -131,35 +115,7 @@ function logKmaError(endpoint, tmFc, header, extra = {}) {
   }
 }
 
-function logFishingError(placeName, reqDate, header, extra = {}) {
-  const resultCode = String(header?.resultCode || '')
-  const resultMsg = header?.resultMsg || 'UNKNOWN'
-
-  console.error('[WHENSDAY] fishing API error', {
-    placeName,
-    reqDate,
-    resultCode,
-    resultMsg,
-    ...extra,
-  })
-
-  if (resultCode === FISHING_INVALID_KEY_CODE || resultMsg.includes('SERVICE KEY')) {
-    console.error('[WHENSDAY] SERVICE_KEY_IS_NOT_REGISTERED', {
-      placeName,
-      reqDate,
-    })
-  }
-}
-
-function parseJsonSafely(text) {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return null
-  }
-}
-
-async function requestKma(endpoint, params, tmFc) {
+async function requestForecast(endpoint, regId, tmFc) {
   const serviceKey = process.env.KMA_SERVICE_KEY
 
   if (!serviceKey) {
@@ -172,8 +128,8 @@ async function requestKma(endpoint, params, tmFc) {
     numOfRows: '10',
     pageNo: '1',
     dataType: 'JSON',
+    regId,
     tmFc,
-    ...params,
   }).toString()
 
   const response = await fetch(url.toString())
@@ -184,7 +140,7 @@ async function requestKma(endpoint, params, tmFc) {
   const resultMsg = header?.resultMsg || ''
 
   if (header && resultCode !== '00') {
-    logKmaError(endpoint, tmFc, header)
+    logKmaError(endpoint, tmFc, header, { regId })
   }
 
   if (!response.ok) {
@@ -227,87 +183,10 @@ async function requestKma(endpoint, params, tmFc) {
     })
   }
 
-  return {
-    header,
-    items: extractKmaItems(payload),
-  }
+  return extractItems(payload)
 }
 
-async function requestFishingForecast(placeName, reqDate) {
-  const serviceKey = process.env.KMA_SERVICE_KEY
-
-  if (!serviceKey) {
-    throw createApiError(500, 'KMA service key is missing.')
-  }
-
-  const url = new URL(FISHING_BASE_URL)
-  url.search = new URLSearchParams({
-    serviceKey,
-    type: 'json',
-    numOfRows: '200',
-    pageNo: '1',
-    reqDate,
-    gubun: '선상',
-    placeName,
-  }).toString()
-
-  const response = await fetch(url.toString())
-  const text = await response.text()
-  const payload = parseJsonSafely(text)
-  const header = payload?.header
-  const resultCode = String(header?.resultCode || '')
-  const resultMsg = header?.resultMsg || ''
-
-  if (header && resultCode !== '00') {
-    logFishingError(placeName, reqDate, header)
-  }
-
-  if (!response.ok) {
-    throw createApiError(502, 'Fishing forecast API request failed.', {
-      status: response.status,
-      statusText: response.statusText,
-      resultCode,
-      resultMsg,
-      rawText: text.slice(0, 300),
-    })
-  }
-
-  if (!payload || !header) {
-    throw createApiError(502, 'Fishing forecast API returned an unexpected response.', {
-      rawText: text.slice(0, 300),
-    })
-  }
-
-  if (resultCode === KMA_NO_DATA_CODE) {
-    throw createApiError(200, 'No fishing forecast data available.', {
-      resultCode,
-      resultMsg,
-      isNoData: true,
-    })
-  }
-
-  if (resultCode === FISHING_INVALID_KEY_CODE) {
-    throw createApiError(502, 'Invalid service key for fishing forecast.', {
-      resultCode,
-      resultMsg,
-      isInvalidKey: true,
-    })
-  }
-
-  if (resultCode !== '00') {
-    throw createApiError(502, 'Fishing forecast API returned an error response.', {
-      resultCode,
-      resultMsg,
-    })
-  }
-
-  return {
-    header,
-    items: payload?.body?.items?.item || [],
-  }
-}
-
-function normalizeWeatherForecast(items) {
+function normalizeWeatherItems(items) {
   const source = items[0]
 
   if (!source) return []
@@ -357,7 +236,7 @@ function normalizeWeatherForecast(items) {
   return normalized
 }
 
-function normalizeTemperatureForecast(items) {
+function normalizeTemperatureItems(items) {
   const source = items[0]
 
   if (!source) return []
@@ -378,147 +257,23 @@ function normalizeTemperatureForecast(items) {
   }).filter(Boolean)
 }
 
-function normalizeSeaForecast(items) {
-  const source = items[0]
-
-  if (!source) return []
-
-  const normalized = []
-
-  FORECAST_DAY_RANGE.forEach((dayOffset) => {
-    const periods = [
-      {
-        period: 'am',
-        weather: source[`wf${dayOffset}Am`],
-        waveMin: toNumber(source[`wh${dayOffset}AAm`]) ?? toNumber(source[`wh${dayOffset}A`]),
-        waveMax: toNumber(source[`wh${dayOffset}BAm`]) ?? toNumber(source[`wh${dayOffset}B`]),
-      },
-      {
-        period: 'pm',
-        weather: source[`wf${dayOffset}Pm`],
-        waveMin: toNumber(source[`wh${dayOffset}APm`]) ?? toNumber(source[`wh${dayOffset}A`]),
-        waveMax: toNumber(source[`wh${dayOffset}BPm`]) ?? toNumber(source[`wh${dayOffset}B`]),
-      },
-    ]
-
-    periods.forEach((item) => {
-      if (!item.weather && item.waveMin == null && item.waveMax == null) return
-
-      normalized.push({
-        dayOffset,
-        period: item.period,
-        weather: item.weather || '제공 전',
-        waveMin: item.waveMin,
-        waveMax: item.waveMax,
-      })
-    })
-
-    if (dayOffset >= 8) {
-      const weather = source[`wf${dayOffset}`]
-      const waveMin = toNumber(source[`wh${dayOffset}A`])
-      const waveMax = toNumber(source[`wh${dayOffset}B`])
-
-      if (!weather && waveMin == null && waveMax == null) return
-
-      normalized.push({
-        dayOffset,
-        period: 'all',
-        weather: weather || '제공 전',
-        waveMin,
-        waveMax,
-      })
-    }
-  })
-
-  return normalized
-}
-
-function createSeaDetailPeriod(value) {
-  if (value === '오전') return 'am'
-  if (value === '오후') return 'pm'
-  return 'all'
-}
-
-function pickFirstByDateAndPeriod(items) {
-  const seen = new Set()
-
-  return items.filter((item) => {
-    const key = `${item.predcYmd}|${item.predcNoonSeCd || '일'}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
-}
-
-function normalizeSeaFishingDetails(items) {
-  return pickFirstByDateAndPeriod(items)
-    .map((item) => ({
-      date: normalizeDateString(item.predcYmd),
-      period: createSeaDetailPeriod(item.predcNoonSeCd),
-      periodLabel: item.predcNoonSeCd || '일',
-      tideLabel: item.tdlvHrCn || '',
-      totalIndex: item.totalIndex || '',
-      waveMin: toNumber(item.minWvhgt),
-      waveMax: toNumber(item.maxWvhgt),
-      waterTempMin: toNumber(item.minWtem),
-      waterTempMax: toNumber(item.maxWtem),
-      currentMin: toNumber(item.minCrsp),
-      currentMax: toNumber(item.maxCrsp),
-      windMin: toNumber(item.minWspd),
-      windMax: toNumber(item.maxWspd),
-    }))
-    .filter((item) => item.date)
-    .sort((left, right) => {
-      const byDate = left.date.localeCompare(right.date)
-      if (byDate !== 0) return byDate
-
-      const order = { am: 0, pm: 1, all: 2 }
-      return order[left.period] - order[right.period]
-    })
-}
-
 function resolveRequestConfig(query) {
   const type = String(query.type || '').trim()
 
-  if (!['weather', 'temperature', 'sea'].includes(type)) {
+  if (!['weather', 'temperature'].includes(type)) {
     throw createApiError(400, 'Invalid forecast type.')
   }
 
-  if (type === 'sea') {
-    const seaAreaKey = String(query.seaArea || DEFAULT_SEA_AREA).trim().toLowerCase()
-    const seaArea = SEA_AREA_MAP[seaAreaKey]
-
-    if (!seaArea) {
-      throw createApiError(400, 'Invalid sea area.')
-    }
-
-    return {
-      type,
-      endpoint: 'getMidSeaFcst',
-      params: {
-        regId: seaArea.forecastCode,
-      },
-      normalize: normalizeSeaForecast,
-      extraPayload: { seaArea: seaArea.id },
-      fishingPlaceName: seaArea.fishingPlaceName,
-    }
-  }
-
-  const regionKey = String(query.region || DEFAULT_FORECAST_REGION).trim().toLowerCase()
-  const region = LAND_REGION_MAP[regionKey]
-
-  if (!region) {
-    throw createApiError(400, 'Invalid forecast region.')
-  }
+  const rawRegId = String(query.regId || '').trim()
+  const regId =
+    rawRegId ||
+    (type === 'weather' ? DEFAULT_WEATHER_REGION_CODE : DEFAULT_TEMPERATURE_REGION_CODE)
 
   return {
     type,
     endpoint: type === 'weather' ? 'getMidLandFcst' : 'getMidTa',
-    params: {
-      regId: type === 'weather' ? region.landForecastCode : region.temperatureCode,
-    },
-    normalize: type === 'weather' ? normalizeWeatherForecast : normalizeTemperatureForecast,
-    extraPayload: {},
+    regId,
+    normalize: type === 'weather' ? normalizeWeatherItems : normalizeTemperatureItems,
   }
 }
 
@@ -531,13 +286,13 @@ async function fetchForecastWithFallback(config) {
 
   for (const tmFc of candidates) {
     try {
-      const result = await requestKma(config.endpoint, config.params, tmFc)
+      const items = await requestForecast(config.endpoint, config.regId, tmFc)
       return {
         ok: true,
         type: config.type,
         tmFc,
-        items: config.normalize(result.items),
-        ...config.extraPayload,
+        regId: config.regId,
+        items: config.normalize(items),
       }
     } catch (error) {
       if (error?.details?.isInvalidKey) {
@@ -551,7 +306,6 @@ async function fetchForecastWithFallback(config) {
       }
 
       lastError = error
-      continue
     }
   }
 
@@ -560,51 +314,14 @@ async function fetchForecastWithFallback(config) {
       ok: true,
       type: config.type,
       tmFc: primaryTmFc,
+      regId: config.regId,
       items: [],
       message: '선택한 기간에 제공되는 예보 정보가 없어요.',
       noData: true,
-      ...config.extraPayload,
     }
   }
 
   throw lastError || createApiError(502, 'Failed to fetch forecast data.')
-}
-
-async function fetchSeaPayload(config) {
-  const [kmaPayload, fishingResult] = await Promise.allSettled([
-    fetchForecastWithFallback(config),
-    requestFishingForecast(config.fishingPlaceName, getKstDateCompact()),
-  ])
-
-  if (kmaPayload.status === 'rejected' && fishingResult.status === 'rejected') {
-    throw kmaPayload.reason || fishingResult.reason
-  }
-
-  const basePayload =
-    kmaPayload.status === 'fulfilled'
-      ? kmaPayload.value
-      : {
-          ok: true,
-          type: config.type,
-          tmFc: getLatestTmFc(),
-          items: [],
-          seaArea: config.extraPayload.seaArea,
-          message: '선택한 기간에 제공되는 예보 정보가 없어요.',
-          noData: true,
-        }
-
-  let detailItems = []
-
-  if (fishingResult.status === 'fulfilled') {
-    detailItems = normalizeSeaFishingDetails(fishingResult.value.items)
-  } else if (!fishingResult.reason?.details?.isNoData) {
-    console.error('[WHENSDAY] fishing detail fetch failed', fishingResult.reason)
-  }
-
-  return {
-    ...basePayload,
-    detailItems,
-  }
 }
 
 export default async function handler(req, res) {
@@ -618,10 +335,7 @@ export default async function handler(req, res) {
 
   try {
     const config = resolveRequestConfig(req.query)
-    const payload =
-      config.type === 'sea'
-        ? await fetchSeaPayload(config)
-        : await fetchForecastWithFallback(config)
+    const payload = await fetchForecastWithFallback(config)
     return res.status(200).json(payload)
   } catch (error) {
     console.error('[WHENSDAY] forecast proxy failed', error)

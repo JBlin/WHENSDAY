@@ -22,6 +22,40 @@
         </div>
 
         <div>
+          <div class="mb-1.5 flex items-start justify-between gap-3">
+            <div>
+              <label class="block text-sm font-semibold text-gray-700">약속 지역</label>
+              <p class="mt-1 text-xs text-gray-400">
+                지역을 선택하면 가능한 날짜를 고를 때 날씨와 바다 정보를 함께 볼 수 있어요.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all"
+              :class="isSelectedRegionFavorite ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'"
+              @click="toggleFavoriteSelectedRegion"
+            >
+              {{ isSelectedRegionFavorite ? '★ 자주 가는 지역' : '☆ 자주 가는 지역으로 저장' }}
+            </button>
+          </div>
+
+          <button
+            type="button"
+            class="flex w-full items-center gap-3 rounded-btn border border-gray-200 bg-gray-50 px-4 py-3 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+            @click="regionPickerVisible = true"
+          >
+            <div class="min-w-0 flex-1">
+              <p class="text-sm font-semibold text-gray-800">선택된 지역: {{ selectedRegion.name }}</p>
+              <p class="mt-0.5 text-xs text-gray-400">{{ selectedRegionSummary }}</p>
+            </div>
+            <span class="shrink-0 rounded-full bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary">
+              지역 선택하기
+            </span>
+          </button>
+        </div>
+
+        <div>
           <label class="mb-1.5 block text-sm font-semibold text-gray-700">날짜 범위</label>
           <button
             type="button"
@@ -132,6 +166,14 @@
     @update:end-date="dateTo = $event"
   />
 
+  <RegionPickerSheet
+    :open="regionPickerVisible"
+    :selected-region-id="selectedRegionId"
+    :favorite-region-ids="favoriteRegionIds"
+    @update:open="regionPickerVisible = $event"
+    @select="handleRegionSelect"
+  />
+
   <ToastMessage :visible="toastVisible" :message="toastMsg" :type="toastType" />
 </template>
 
@@ -139,7 +181,10 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import DateRangeSheet from '../components/DateRangeSheet.vue'
+import RegionPickerSheet from '../components/RegionPickerSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
+import { DEFAULT_REGION, findRegionById } from '../data/regions.js'
+import { getFavoriteRegionIds, toggleFavoriteRegion } from '../lib/favoriteRegions.js'
 import { storeHostToken } from '../lib/hostAccess.js'
 import { formatDisplayDate, formatLocalDate, rangeDayCount } from '../lib/meetingUtils.js'
 import { buildKakaoShareText, buildMeetingUrl, copyText } from '../lib/share.js'
@@ -154,6 +199,9 @@ const dateTo = ref('')
 const submitting = ref(false)
 const errorMsg = ref('')
 const rangePickerVisible = ref(false)
+const regionPickerVisible = ref(false)
+const selectedRegionId = ref(DEFAULT_REGION.id)
+const favoriteRegionIds = ref(getFavoriteRegionIds())
 
 const shareVisible = ref(false)
 const shareUrl = ref('')
@@ -166,6 +214,15 @@ const toastMsg = ref('')
 const toastType = ref('success')
 
 const today = formatLocalDate(new Date())
+const selectedRegion = computed(() => findRegionById(selectedRegionId.value) || DEFAULT_REGION)
+const isSelectedRegionFavorite = computed(() => favoriteRegionIds.value.includes(selectedRegion.value.id))
+const selectedRegionSummary = computed(() => {
+  if (selectedRegion.value.fishingPlaceName) {
+    return `${selectedRegion.value.category} · 바다 포인트 ${selectedRegion.value.fishingPlaceName}`
+  }
+
+  return `${selectedRegion.value.category} · 날씨와 온도 정보를 볼 수 있어요.`
+})
 
 const maxDate = computed(() => {
   const date = new Date()
@@ -206,7 +263,12 @@ async function create() {
   submitting.value = true
 
   try {
-    const meeting = await store.createMeeting(title.value.trim(), dateFrom.value, dateTo.value)
+    const meeting = await store.createMeeting(
+      title.value.trim(),
+      dateFrom.value,
+      dateTo.value,
+      selectedRegion.value
+    )
 
     createdId.value = meeting.id
     shareUrl.value = buildMeetingUrl(meeting.id)
@@ -241,6 +303,16 @@ async function copyShareText() {
 
 function closeShareSheet() {
   shareVisible.value = false
+}
+
+function handleRegionSelect(regionId) {
+  selectedRegionId.value = regionId
+}
+
+function toggleFavoriteSelectedRegion() {
+  const wasFavorite = isSelectedRegionFavorite.value
+  favoriteRegionIds.value = toggleFavoriteRegion(selectedRegion.value.id)
+  showToast(wasFavorite ? '자주 가는 지역에서 제거했어요.' : '자주 가는 지역으로 저장했어요.')
 }
 
 function goToMeeting() {

@@ -18,10 +18,11 @@
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key-here
 KMA_SERVICE_KEY=your-kma-service-key-here
+FISHING_SERVICE_KEY=your-fishing-service-key-here
 ```
 
 현재 코드는 `VITE_SUPABASE_PUBLISHABLE_KEY`를 우선 사용하고, 없으면 `VITE_SUPABASE_ANON_KEY`도 fallback으로 읽습니다.
-기상청 중기예보 키는 브라우저에 노출하지 않도록 `KMA_SERVICE_KEY`를 Vercel 서버 환경 변수로만 사용합니다.
+기상청 중기예보 키와 바다낚시지수 키는 브라우저에 노출하지 않도록 `KMA_SERVICE_KEY`, `FISHING_SERVICE_KEY`를 Vercel 서버 환경 변수로만 사용합니다.
 
 ## Supabase SQL
 
@@ -37,6 +38,12 @@ create table meetings (
   host_code text,
   status text not null default 'open',
   confirmed_date date,
+  region_name text,
+  weather_region_code text,
+  temperature_region_code text,
+  sea_area_code text,
+  fishing_place_name text,
+  fishing_gubun text,
   created_at timestamptz default now()
 );
 
@@ -54,6 +61,12 @@ alter table meetings add column if not exists host_token text;
 alter table meetings add column if not exists host_code text;
 alter table meetings add column if not exists status text not null default 'open';
 alter table meetings add column if not exists confirmed_date date;
+alter table meetings add column if not exists region_name text;
+alter table meetings add column if not exists weather_region_code text;
+alter table meetings add column if not exists temperature_region_code text;
+alter table meetings add column if not exists sea_area_code text;
+alter table meetings add column if not exists fishing_place_name text;
+alter table meetings add column if not exists fishing_gubun text;
 alter table responses add column if not exists is_host boolean not null default false;
 
 alter table meetings enable row level security;
@@ -69,11 +82,13 @@ create policy "Anyone can update responses" on responses for update using (true)
 alter publication supabase_realtime add table responses;
 ```
 
-## 중기예보 참고 정보
+## 지역 기반 참고 정보
 
-- `/meeting/:id`의 참고 정보 뱃지는 `/api/forecast` Vercel Function을 통해 기상청 중기예보 API를 프록시 호출합니다.
-- MVP 기준 기본 육상 지역은 `서울`, 바다 해역은 `서해/남해/동해`만 하드코딩되어 있습니다.
+- `/meeting/:id`의 `날씨`, `온도` 뱃지는 `/api/forecast` Vercel Function을 통해 기상청 중기예보 API를 프록시 호출합니다.
+- `/meeting/:id`의 `바다` 뱃지는 `/api/fishing` Vercel Function을 통해 바다낚시지수 API를 프록시 호출합니다.
+- 약속 생성 시 선택한 지역의 `weather_region_code`, `temperature_region_code`, `fishing_place_name`, `fishing_gubun`이 meeting 레코드에 저장됩니다.
 - 중기예보는 발표 시각 기준 `4~10일 후` 날짜 중심으로 제공되므로, 가까운 날짜 범위에서는 정보가 없을 수 있습니다.
+- 물때 표시는 API의 `tdlvHrCn` 텍스트를 그대로 쓰지 않고, 브라우저 `Intl` 기반 음력일 계산 후 `n물`로 표시합니다.
 
 ## 약속 만들기 실패 시
 
@@ -115,3 +130,5 @@ Vercel 배포 시 아래 환경 변수를 추가하세요.
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `KMA_SERVICE_KEY`
+- `FISHING_SERVICE_KEY`

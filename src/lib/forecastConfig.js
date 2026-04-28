@@ -1,5 +1,5 @@
-export const DEFAULT_FORECAST_REGION = 'seoul'
-export const DEFAULT_SEA_AREA = 'west'
+export const DEFAULT_WEATHER_REGION_CODE = '11B00000'
+export const DEFAULT_TEMPERATURE_REGION_CODE = '11B10101'
 
 export const FORECAST_TYPE_OPTIONS = [
   { id: 'weather', label: '날씨' },
@@ -7,43 +7,16 @@ export const FORECAST_TYPE_OPTIONS = [
   { id: 'sea', label: '바다' },
 ]
 
-export const LAND_REGION_MAP = {
-  seoul: {
-    id: 'seoul',
-    label: '서울',
-    landForecastCode: '11B00000',
-    temperatureCode: '11B10101',
-  },
-}
-
-export const SEA_AREA_MAP = {
-  west: {
-    id: 'west',
-    label: '서해',
-    forecastCode: '12A20000',
-    zoneLabel: '서해중부',
-    fishingPlaceName: '방포항',
-  },
-  south: {
-    id: 'south',
-    label: '남해',
-    forecastCode: '12B20000',
-    zoneLabel: '남해동부',
-    fishingPlaceName: '거문도',
-  },
-  east: {
-    id: 'east',
-    label: '동해',
-    forecastCode: '12C10000',
-    zoneLabel: '동해남부',
-    fishingPlaceName: '남애항',
-  },
+const SEA_AREA_LABELS = {
+  west: '서해',
+  south: '남해',
+  east: '동해',
 }
 
 export function getForecastTypeLabel(type) {
   return FORECAST_TYPE_OPTIONS.find((option) => option.id === type)?.label || ''
 }
 
-export function getSeaAreaLabel(seaArea) {
-  return SEA_AREA_MAP[seaArea]?.label || ''
+export function getSeaAreaLabel(seaAreaCode) {
+  return SEA_AREA_LABELS[seaAreaCode] || ''
 }

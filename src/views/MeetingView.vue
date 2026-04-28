@@ -88,10 +88,11 @@
               {{ selectedDates.length }}일 선택
             </span>
           </div>
+          <p class="mb-3 text-xs font-medium text-gray-400">약속 지역 · {{ meetingRegionName }}</p>
           <CalendarInfoToggle
             v-model="selectedInfoType"
-            :sea-area="selectedSeaArea"
-            @update:sea-area="selectedSeaArea = $event"
+            :sea-available="seaAvailable"
+            @sea-unavailable="showToast(seaUnavailableMessage, 'info')"
           />
           <CalendarPicker
             class="mt-4"
@@ -102,13 +103,17 @@
           />
           <CalendarInfoList
             :selected-type="selectedInfoType"
-            :sea-area="selectedSeaArea"
             :items="visibleForecastItems"
-            :detail-items="visibleForecastDetailItems"
+            :detail-items="visibleFishingItems"
             :selected-dates="selectedDates"
             :loading="forecastLoading"
             :error="forecastError"
             :empty-message="forecastEmptyMessage"
+            :tide-rows="visibleTideRows"
+            :show-tide-limit-message="showTideLimitMessage"
+            :sea-available="seaAvailable"
+            :fishing-gubun="store.meeting?.fishing_gubun || ''"
+            :fishing-place-name="store.meeting?.fishing_place_name || ''"
           />
         </div>
       </div>
@@ -141,17 +146,22 @@ import CalendarPicker from '../components/CalendarPicker.vue'
 import CalendarInfoList from '../components/CalendarInfoList.vue'
 import CalendarInfoToggle from '../components/CalendarInfoToggle.vue'
 import ToastMessage from '../components/ToastMessage.vue'
-import { DEFAULT_SEA_AREA } from '../lib/forecastConfig.js'
+import { DEFAULT_REGION } from '../data/regions.js'
 import {
-  buildTideLabelMap,
+  fetchFishingForecast,
+  filterFishingItemsByRange,
+  SEA_UNAVAILABLE_MESSAGE,
+} from '../lib/fishing.js'
+import {
   fetchForecast,
-  filterForecastDetailItemsByRange,
   filterForecastItemsByRange,
+  formatForecastDate,
 } from '../lib/forecast.js'
 import { hasStoredHostAccess, storeHostResponseName } from '../lib/hostAccess.js'
 import { formatDisplayDate } from '../lib/meetingUtils.js'
 import { hasVotedForMeeting, markMeetingAsVoted } from '../lib/voteAccess.js'
 import { supabase } from '../lib/supabase.js'
+import { buildTideLabelMap, buildTideTable, isTideRangeSupported } from '../lib/tide.js'
 import { useMeetingStore } from '../stores/meeting.js'
 
 const route = useRoute()
@@ -167,9 +177,8 @@ const toastMsg = ref('')
 const toastType = ref('success')
 const hasVoted = ref(hasVotedForMeeting(route.params.id))
 const selectedInfoType = ref('')
-const selectedSeaArea = ref(DEFAULT_SEA_AREA)
 const forecastItems = ref([])
-const forecastDetailItems = ref([])
+const fishingItems = ref([])
 const forecastLoading = ref(false)
 const forecastError = ref(false)
 const forecastEmptyMessage = ref('')
@@ -178,18 +187,34 @@ const isHost = computed(() => hasStoredHostAccess(route.params.id, store.meeting
 const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
 const canViewResult = computed(() => submitted.value || hasVoted.value || isConfirmed.value || isHost.value)
+// TODO: If host-side region editing is added later, keep the meeting record as the single source of truth here.
+const meetingRegionName = computed(() => store.meeting?.region_name || DEFAULT_REGION.name)
+const seaAvailable = computed(() =>
+  Boolean(store.meeting?.fishing_place_name && store.meeting?.fishing_gubun)
+)
+const seaUnavailableMessage = SEA_UNAVAILABLE_MESSAGE
 const visibleForecastItems = computed(() =>
   filterForecastItemsByRange(forecastItems.value, store.meeting?.date_from, store.meeting?.date_to)
 )
-const visibleForecastDetailItems = computed(() =>
-  filterForecastDetailItemsByRange(
-    forecastDetailItems.value,
-    store.meeting?.date_from,
-    store.meeting?.date_to
-  )
+const visibleFishingItems = computed(() =>
+  filterFishingItemsByRange(fishingItems.value, store.meeting?.date_from, store.meeting?.date_to)
+)
+const tideRangeSupported = computed(() =>
+  isTideRangeSupported(store.meeting?.date_from, store.meeting?.date_to, 60)
+)
+const visibleTideRows = computed(() => {
+  if (selectedInfoType.value !== 'sea' || !seaAvailable.value || !tideRangeSupported.value) return []
+
+  return buildTideTable(store.meeting?.date_from, store.meeting?.date_to).map((row) => ({
+    ...row,
+    dateLabel: formatForecastDate(row.date),
+  }))
+})
+const showTideLimitMessage = computed(
+  () => selectedInfoType.value === 'sea' && seaAvailable.value && !tideRangeSupported.value
 )
 const calendarTideLabels = computed(() =>
-  selectedInfoType.value === 'sea' ? buildTideLabelMap(visibleForecastDetailItems.value) : {}
+  selectedInfoType.value === 'sea' && seaAvailable.value ? buildTideLabelMap(visibleTideRows.value) : {}
 )
 
 let realtimeChannel = null
@@ -218,28 +243,45 @@ onUnmounted(() => {
 watch(
   [
     selectedInfoType,
-    selectedSeaArea,
+    () => store.meeting?.weather_region_code,
+    () => store.meeting?.temperature_region_code,
+    () => store.meeting?.fishing_place_name,
+    () => store.meeting?.fishing_gubun,
     () => store.meeting?.date_from,
     () => store.meeting?.date_to,
   ],
-  async ([type, seaArea, dateFrom, dateTo]) => {
+  async ([type, weatherRegionCode, temperatureRegionCode, fishingPlaceName, fishingGubun, dateFrom, dateTo]) => {
     const requestId = ++forecastRequestId
 
     if (!type || !dateFrom || !dateTo) {
       forecastItems.value = []
-      forecastDetailItems.value = []
+      fishingItems.value = []
       forecastLoading.value = false
       forecastError.value = false
       forecastEmptyMessage.value = ''
       return
     }
 
-    const cacheKey = type === 'sea' ? `${type}:${seaArea}` : `${type}:seoul`
+    if (type === 'sea' && !seaAvailable.value) {
+      forecastItems.value = []
+      fishingItems.value = []
+      forecastLoading.value = false
+      forecastError.value = false
+      forecastEmptyMessage.value = ''
+      return
+    }
+
+    const cacheKey =
+      type === 'weather'
+        ? `${type}:${weatherRegionCode || DEFAULT_REGION.weatherRegionCode}`
+        : type === 'temperature'
+          ? `${type}:${temperatureRegionCode || DEFAULT_REGION.temperatureRegionCode}`
+          : `${type}:${fishingGubun || ''}:${fishingPlaceName || ''}`
 
     if (forecastCache.has(cacheKey)) {
       const cached = forecastCache.get(cacheKey)
       forecastItems.value = cached.items
-      forecastDetailItems.value = cached.detailItems || []
+      fishingItems.value = cached.detailItems || []
       forecastLoading.value = false
       forecastError.value = false
       forecastEmptyMessage.value = cached.message
@@ -250,19 +292,25 @@ watch(
     forecastError.value = false
 
     try {
-      const payload = await fetchForecast({
-        type,
-        seaArea,
-      })
+      const payload =
+        type === 'sea'
+          ? await fetchFishingForecast({
+              placeName: fishingPlaceName,
+              gubun: fishingGubun,
+            })
+          : await fetchForecast({
+              type,
+              regId: type === 'weather' ? weatherRegionCode : temperatureRegionCode,
+            })
 
       if (requestId !== forecastRequestId) return
 
-      const items = Array.isArray(payload?.items) ? payload.items : []
-      const detailItems = Array.isArray(payload?.detailItems) ? payload.detailItems : []
+      const items = type === 'sea' ? [] : Array.isArray(payload?.items) ? payload.items : []
+      const detailItems = type === 'sea' ? (Array.isArray(payload?.items) ? payload.items : []) : []
       const message = payload?.message || ''
       forecastCache.set(cacheKey, { items, detailItems, message })
       forecastItems.value = items
-      forecastDetailItems.value = detailItems
+      fishingItems.value = detailItems
       forecastEmptyMessage.value = message
     } catch (error) {
       console.error('[WHENSDAY] failed to fetch forecast info', error)
@@ -270,7 +318,7 @@ watch(
       if (requestId !== forecastRequestId) return
 
       forecastItems.value = []
-      forecastDetailItems.value = []
+      fishingItems.value = []
       forecastError.value = true
       forecastEmptyMessage.value = ''
     } finally {

@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import {
+  buildRegionMeetingFields,
+  DEFAULT_REGION,
+  getRegionFromMeetingRecord,
+} from '../data/regions.js'
+import {
   assertSupabaseConfigured,
   SUPABASE_CONFIG_ERROR_MESSAGE,
   supabase,
@@ -41,11 +46,20 @@ function hasSchemaMismatch(err, columns = []) {
 function normalizeMeetingRecord(data) {
   if (!data) return null
 
+  const region = getRegionFromMeetingRecord(data)
+
   return {
     ...data,
     host_token: data.host_token || '',
     status: data.status || 'open',
     confirmed_date: data.confirmed_date || null,
+    region_name: region.name,
+    weather_region_code: region.weatherRegionCode,
+    temperature_region_code: region.temperatureRegionCode,
+    sea_area_code: region.seaAreaCode,
+    fishing_place_name: region.fishingPlaceName,
+    fishing_gubun: region.fishingGubun,
+    region,
   }
 }
 
@@ -73,10 +87,10 @@ async function upsertResponseRecord(payload) {
   if (err) throw err
 }
 
-async function selectMeetingRecord(id, columns) {
+async function selectMeetingRecord(id) {
   const { data, error: err } = await supabase
     .from('meetings')
-    .select(columns)
+    .select('*')
     .eq('id', id)
     .single()
 
@@ -118,29 +132,7 @@ export const useMeetingStore = defineStore('meeting', () => {
 
       let data
 
-      try {
-        data = await selectMeetingRecord(
-          id,
-          'id,title,date_from,date_to,host_token,status,confirmed_date,created_at'
-        )
-      } catch (err) {
-        if (!hasSchemaMismatch(err, ['host_token', 'status', 'confirmed_date'])) {
-          throw err
-        }
-
-        logCompatibilityFallback('meeting select fallback: optional columns unavailable', err)
-
-        try {
-          data = await selectMeetingRecord(id, 'id,title,date_from,date_to,host_token,created_at')
-        } catch (fallbackErr) {
-          if (!hasSchemaMismatch(fallbackErr, ['host_token'])) {
-            throw fallbackErr
-          }
-
-          logCompatibilityFallback('meeting select fallback: host token column unavailable', fallbackErr)
-          data = await selectMeetingRecord(id, 'id,title,date_from,date_to,created_at')
-        }
-      }
+      data = await selectMeetingRecord(id)
 
       meeting.value = normalizeMeetingRecord(data)
       return meeting.value
@@ -177,21 +169,52 @@ export const useMeetingStore = defineStore('meeting', () => {
     }
   }
 
-  async function createMeeting(title, dateFrom, dateTo) {
+  async function createMeeting(title, dateFrom, dateTo, region = DEFAULT_REGION) {
     assertSupabaseConfigured()
 
+    const regionFields = buildRegionMeetingFields(region)
     const baseMeeting = {
       id: crypto.randomUUID(),
       title,
       date_from: dateFrom,
       date_to: dateTo,
       host_token: crypto.randomUUID(),
+      ...regionFields,
     }
     const hostCode = createHostCode()
     const attempts = [
       {
         payload: {
           ...baseMeeting,
+          host_code: hostCode,
+          status: 'open',
+          confirmed_date: null,
+        },
+        result: {
+          ...baseMeeting,
+          host_code: hostCode,
+          status: 'open',
+          confirmed_date: null,
+        },
+        schemaColumns: [
+          'host_code',
+          'status',
+          'confirmed_date',
+          'region_name',
+          'weather_region_code',
+          'temperature_region_code',
+          'sea_area_code',
+          'fishing_place_name',
+          'fishing_gubun',
+        ],
+      },
+      {
+        payload: {
+          id: baseMeeting.id,
+          title: baseMeeting.title,
+          date_from: baseMeeting.date_from,
+          date_to: baseMeeting.date_to,
+          host_token: baseMeeting.host_token,
           host_code: hostCode,
           status: 'open',
           confirmed_date: null,
@@ -216,11 +239,62 @@ export const useMeetingStore = defineStore('meeting', () => {
           status: 'open',
           confirmed_date: null,
         },
+        schemaColumns: [
+          'status',
+          'confirmed_date',
+          'region_name',
+          'weather_region_code',
+          'temperature_region_code',
+          'sea_area_code',
+          'fishing_place_name',
+          'fishing_gubun',
+        ],
+      },
+      {
+        payload: {
+          id: baseMeeting.id,
+          title: baseMeeting.title,
+          date_from: baseMeeting.date_from,
+          date_to: baseMeeting.date_to,
+          host_token: baseMeeting.host_token,
+          status: 'open',
+          confirmed_date: null,
+        },
+        result: {
+          ...baseMeeting,
+          host_code: '',
+          status: 'open',
+          confirmed_date: null,
+        },
         schemaColumns: ['status', 'confirmed_date'],
       },
       {
         payload: {
           ...baseMeeting,
+        },
+        result: {
+          ...baseMeeting,
+          host_code: '',
+          status: 'open',
+          confirmed_date: null,
+        },
+        schemaColumns: [
+          'host_token',
+          'region_name',
+          'weather_region_code',
+          'temperature_region_code',
+          'sea_area_code',
+          'fishing_place_name',
+          'fishing_gubun',
+        ],
+      },
+      {
+        payload: {
+          id: baseMeeting.id,
+          title: baseMeeting.title,
+          date_from: baseMeeting.date_from,
+          date_to: baseMeeting.date_to,
+          host_token: baseMeeting.host_token,
         },
         result: {
           ...baseMeeting,
@@ -326,8 +400,8 @@ export const useMeetingStore = defineStore('meeting', () => {
 
       if (err) throw err
 
-      meeting.value = data
-      return data
+      meeting.value = normalizeMeetingRecord(data)
+      return meeting.value
     } catch (err) {
       logSupabaseError('failed to confirm meeting', err)
       throw buildSupabaseError(err)
