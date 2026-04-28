@@ -9,9 +9,17 @@ import {
 const GENERIC_REQUEST_ERROR_MESSAGE = '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'
 const NOT_FOUND_ERROR_MESSAGE = '약속 정보를 찾을 수 없어요.'
 const CONFIRMED_MEETING_ERROR_MESSAGE = '이미 확정된 약속이라 더 이상 제출할 수 없어요.'
+const INVALID_HOST_CODE_ERROR_MESSAGE = '방장 코드가 맞지 않아요.'
 
 function createUserFacingError(message = GENERIC_REQUEST_ERROR_MESSAGE) {
   return new Error(message)
+}
+
+function createHostCode(length = 6) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const array = crypto.getRandomValues(new Uint32Array(length))
+
+  return Array.from(array, (value) => chars[value % chars.length]).join('')
 }
 
 export const useMeetingStore = defineStore('meeting', () => {
@@ -27,17 +35,9 @@ export const useMeetingStore = defineStore('meeting', () => {
   function buildSupabaseError(err, options = {}) {
     const { notFoundMessage = NOT_FOUND_ERROR_MESSAGE } = options
 
-    if (!err) {
-      return createUserFacingError()
-    }
-
-    if (err.message === SUPABASE_CONFIG_ERROR_MESSAGE) {
-      return createUserFacingError()
-    }
-
-    if (err.code === 'PGRST116') {
-      return createUserFacingError(notFoundMessage)
-    }
+    if (!err) return createUserFacingError()
+    if (err.message === SUPABASE_CONFIG_ERROR_MESSAGE) return createUserFacingError()
+    if (err.code === 'PGRST116') return createUserFacingError(notFoundMessage)
 
     return createUserFacingError()
   }
@@ -51,7 +51,7 @@ export const useMeetingStore = defineStore('meeting', () => {
 
       const { data, error: err } = await supabase
         .from('meetings')
-        .select('*')
+        .select('id,title,date_from,date_to,host_token,status,confirmed_date,created_at')
         .eq('id', id)
         .single()
 
@@ -101,6 +101,7 @@ export const useMeetingStore = defineStore('meeting', () => {
       date_from: dateFrom,
       date_to: dateTo,
       host_token: crypto.randomUUID(),
+      host_code: createHostCode(),
       status: 'open',
       confirmed_date: null,
     }
@@ -163,6 +164,31 @@ export const useMeetingStore = defineStore('meeting', () => {
     }
   }
 
+  async function recoverHostAccess(meetingId, hostCode) {
+    assertSupabaseConfigured()
+
+    try {
+      const { data, error: err } = await supabase
+        .from('meetings')
+        .select('host_token')
+        .eq('id', meetingId)
+        .eq('host_code', hostCode.trim().toUpperCase())
+        .single()
+
+      if (err) throw err
+
+      return data?.host_token || ''
+    } catch (err) {
+      logSupabaseError('failed to recover host access', err)
+
+      if (err?.code === 'PGRST116') {
+        throw createUserFacingError(INVALID_HOST_CODE_ERROR_MESSAGE)
+      }
+
+      throw buildSupabaseError(err)
+    }
+  }
+
   function reset() {
     meeting.value = null
     responses.value = []
@@ -179,6 +205,7 @@ export const useMeetingStore = defineStore('meeting', () => {
     createMeeting,
     submitResponse,
     confirmMeeting,
+    recoverHostAccess,
     reset,
   }
 })

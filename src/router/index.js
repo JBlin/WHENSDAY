@@ -7,7 +7,6 @@ const router = createRouter({
     { path: '/', component: HomeView },
     { path: '/meeting/:id', component: () => import('../views/MeetingView.vue') },
     { path: '/meeting/:id/result', component: () => import('../views/ResultView.vue') },
-    { path: '/host/:id', component: () => import('../views/HostManageView.vue') },
   ],
 })
 

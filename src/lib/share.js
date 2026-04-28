@@ -6,20 +6,11 @@ export function buildMeetingUrl(meetingId) {
   return new URL(`/meeting/${meetingId}`, window.location.origin).toString()
 }
 
-export function buildHostUrl(meetingId, hostToken) {
-  if (!meetingId || !hostToken || typeof window === 'undefined') {
-    throw new Error('방장 링크를 만들 수 없어요.')
-  }
-
-  const url = new URL(`/host/${meetingId}`, window.location.origin)
-  url.searchParams.set('token', hostToken)
-  return url.toString()
-}
-
 export function buildKakaoShareText({ title, participantUrl }) {
   return [
-    `[WHENSDAY] ${title}`,
-    '가능한 날짜를 눌러서 참여해 주세요.',
+    title,
+    '언제 되는지 체크해줘!',
+    'Whensday에서 가능한 날짜만 골라주면 돼.',
     participantUrl,
   ].join('\n')
 }

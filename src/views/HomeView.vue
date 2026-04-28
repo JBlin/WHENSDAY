@@ -80,72 +80,40 @@
         </div>
 
         <div class="mb-5">
-          <div class="mb-1 flex items-center gap-2">
-            <span class="font-brand text-base font-black uppercase tracking-wide text-primary">WHENSDAY</span>
-            <h3 class="text-base font-bold text-gray-900">약속이 만들어졌어요</h3>
-          </div>
-          <p class="text-sm text-gray-500">참여자용 링크와 방장용 링크를 각각 복사해 두세요.</p>
+          <h3 class="text-lg font-bold text-gray-900">약속 링크가 만들어졌어요</h3>
+          <p class="mt-2 text-sm text-gray-500">
+            친구들에게 이 링크만 공유하면 돼요.
+            <br />
+            방장 권한은 이 기기에 자동으로 저장됐어요.
+          </p>
         </div>
 
-        <div class="mb-3 rounded-card border border-gray-200 bg-gray-50 p-3">
-          <div class="mb-2 flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-gray-900">참여자용 링크</p>
-              <p class="text-xs text-gray-400">친구들에게 보내는 링크예요.</p>
-            </div>
-            <button
-              type="button"
-              class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150"
-              :class="copiedTarget === 'participant' ? 'bg-green-100 text-green-700' : 'bg-primary-light text-primary'"
-              @click="copyValue('participant', participantUrl, '참여자 링크를 복사했어요.')"
-            >
-              {{ copiedTarget === 'participant' ? '복사됨' : '복사' }}
-            </button>
-          </div>
-          <p class="truncate font-mono text-xs text-gray-600">{{ participantUrl }}</p>
-        </div>
-
-        <div class="mb-3 rounded-card border border-amber-200 bg-amber-50 p-3">
-          <div class="mb-2 flex items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold text-gray-900">방장용 링크</p>
-              <p class="text-xs text-amber-700">약속 확정과 관리에 필요해요. 꼭 따로 저장해 주세요.</p>
-            </div>
-            <button
-              type="button"
-              class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150"
-              :class="copiedTarget === 'host' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
-              @click="copyValue('host', hostUrl, '방장 링크를 복사했어요.')"
-            >
-              {{ copiedTarget === 'host' ? '복사됨' : '복사' }}
-            </button>
-          </div>
-          <p class="truncate font-mono text-xs text-gray-600">{{ hostUrl }}</p>
+        <div class="mb-4 rounded-card border border-gray-200 bg-gray-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">공유 링크</p>
+          <p class="mt-2 truncate font-mono text-xs text-gray-600">{{ shareUrl }}</p>
         </div>
 
         <button
           type="button"
-          class="mb-5 flex h-12 w-full items-center justify-center gap-2 rounded-btn border border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-150 active:scale-95"
-          @click="copyValue('kakao', kakaoShareText, '카카오톡 공유 문구를 복사했어요.')"
+          class="mb-3 h-12 w-full rounded-btn bg-primary text-sm font-bold text-white transition-all duration-150 active:scale-95"
+          @click="copyShareText"
         >
-          <span>{{ copiedTarget === 'kakao' ? '복사 완료!' : '카카오톡 공유 문구 복사' }}</span>
+          {{ copiedShareText ? '복사 완료!' : '공유 문구 복사하기' }}
         </button>
 
-        <div class="flex flex-col gap-3">
-          <button
-            type="button"
-            class="h-12 w-full rounded-btn bg-primary text-sm font-bold text-white transition-all duration-150 active:scale-95"
-            @click="goToMeeting"
-          >
-            참여자 화면 보기
-          </button>
-          <button
-            type="button"
-            class="h-12 w-full rounded-btn border border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-150 active:scale-95"
-            @click="goToHostManage"
-          >
-            방장 관리 열기
-          </button>
+        <button
+          type="button"
+          class="mb-5 h-12 w-full rounded-btn border border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-150 active:scale-95"
+          @click="goToResult"
+        >
+          결과 보러가기
+        </button>
+
+        <div class="rounded-card border border-amber-200 bg-amber-50 p-4">
+          <p class="text-sm font-semibold text-amber-800">방장 코드: {{ hostCode }}</p>
+          <p class="mt-2 text-sm text-amber-700">
+            기기를 바꾸거나 권한이 사라진 경우 이 코드로 방장 권한을 복구할 수 있어요.
+          </p>
         </div>
       </div>
     </div>
@@ -171,8 +139,9 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import DateRangeSheet from '../components/DateRangeSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
+import { storeHostToken } from '../lib/hostAccess.js'
 import { formatDisplayDate, formatLocalDate, rangeDayCount } from '../lib/meetingUtils.js'
-import { buildHostUrl, buildKakaoShareText, buildMeetingUrl, copyText } from '../lib/share.js'
+import { buildKakaoShareText, buildMeetingUrl, copyText } from '../lib/share.js'
 import { useMeetingStore } from '../stores/meeting.js'
 
 const router = useRouter()
@@ -186,12 +155,11 @@ const errorMsg = ref('')
 const rangePickerVisible = ref(false)
 
 const shareVisible = ref(false)
-const participantUrl = ref('')
-const hostUrl = ref('')
-const kakaoShareText = ref('')
-const copiedTarget = ref('')
+const shareUrl = ref('')
+const shareText = ref('')
+const copiedShareText = ref(false)
+const hostCode = ref('')
 const createdId = ref('')
-const createdHostToken = ref('')
 const toastVisible = ref(false)
 const toastMsg = ref('')
 const toastType = ref('success')
@@ -240,13 +208,13 @@ async function create() {
     const meeting = await store.createMeeting(title.value.trim(), dateFrom.value, dateTo.value)
 
     createdId.value = meeting.id
-    createdHostToken.value = meeting.host_token
-    participantUrl.value = buildMeetingUrl(meeting.id)
-    hostUrl.value = buildHostUrl(meeting.id, meeting.host_token)
-    kakaoShareText.value = buildKakaoShareText({
+    shareUrl.value = buildMeetingUrl(meeting.id)
+    shareText.value = buildKakaoShareText({
       title: meeting.title,
-      participantUrl: participantUrl.value,
+      participantUrl: shareUrl.value,
     })
+    hostCode.value = meeting.host_code
+    storeHostToken(meeting.id, meeting.host_token)
     shareVisible.value = true
   } catch (error) {
     console.error('[WHENSDAY] failed to create meeting', error)
@@ -256,16 +224,16 @@ async function create() {
   }
 }
 
-async function copyValue(target, value, successMessage) {
+async function copyShareText() {
   try {
-    await copyText(value)
-    copiedTarget.value = target
-    showToast(successMessage)
+    await copyText(shareText.value)
+    copiedShareText.value = true
+    showToast('공유 문구를 복사했어요.')
     setTimeout(() => {
-      if (copiedTarget.value === target) copiedTarget.value = ''
+      copiedShareText.value = false
     }, 2000)
   } catch (error) {
-    console.error(`[WHENSDAY] failed to copy ${target}`, error)
+    console.error('[WHENSDAY] failed to copy share text', error)
     showToast('복사에 실패했어요. 잠시 후 다시 시도해 주세요.', 'error')
   }
 }
@@ -274,15 +242,8 @@ function closeShareSheet() {
   shareVisible.value = false
 }
 
-function goToMeeting() {
-  router.push(`/meeting/${createdId.value}`)
-}
-
-function goToHostManage() {
-  router.push({
-    path: `/host/${createdId.value}`,
-    query: { token: createdHostToken.value },
-  })
+function goToResult() {
+  router.push(`/meeting/${createdId.value}/result`)
 }
 
 function showToast(message, type = 'success') {
@@ -296,8 +257,8 @@ function showToast(message, type = 'success') {
 
 const steps = [
   { icon: '1', title: '날짜 범위 설정', desc: '만날 수 있는 기간을 먼저 정해요.' },
-  { icon: '2', title: '친구들에게 링크 공유', desc: '참여자 링크를 보내서 가능한 날짜를 받아요.' },
-  { icon: '3', title: '겹치는 날짜 확인', desc: '방장 화면에서 추천 날짜를 보고 확정해요.' },
+  { icon: '2', title: '친구들에게 링크 공유', desc: '링크 하나만 보내서 가능한 날짜를 받아요.' },
+  { icon: '3', title: '결과 확인 후 확정', desc: '결과 화면에서 추천 날짜를 보고 약속을 확정해요.' },
 ]
 </script>
 

@@ -37,7 +37,12 @@
         <div v-if="isConfirmed" class="rounded-card border border-primary/15 bg-primary/[0.04] p-4">
           <p class="text-sm font-semibold text-primary">약속 날짜가 확정됐어요</p>
           <p class="mt-2 text-xl font-bold text-gray-900">{{ confirmedDateLabel }}</p>
-          <p class="mt-2 text-sm text-gray-500">이제 이 날짜를 기준으로 약속을 준비하면 돼요.</p>
+          <p class="mt-2 text-sm text-gray-500">이 날짜를 기준으로 약속을 준비하면 돼요.</p>
+        </div>
+
+        <div v-if="isHost" class="rounded-card border border-amber-200 bg-amber-50 p-4">
+          <p class="text-sm font-semibold text-amber-800">방장 모드</p>
+          <p class="mt-2 text-sm text-amber-700">이 기기에서 방장 권한이 확인됐어요. 아래 추천 날짜 카드에서 바로 약속을 확정할 수 있어요.</p>
         </div>
 
         <div v-if="isConfirmed" class="rounded-card bg-white p-4 shadow-sm">
@@ -76,16 +81,23 @@
           v-if="store.responses.length"
           :responses="store.responses"
           :total-participants="store.responses.length"
+          :confirmed-date="store.meeting.confirmed_date || ''"
+          :pending-date="confirmingDate"
+          :show-confirm-button="isHost"
           title="추천 날짜 TOP 3"
           description="참여 인원이 많은 순서대로 보여드려요."
+          @confirm="confirmDate"
         />
 
         <div v-if="store.responses.length" class="rounded-card bg-white p-4 shadow-sm">
           <h3 class="text-sm font-semibold text-gray-700">날짜별 가능 인원</h3>
-          <div class="mt-4 flex flex-wrap items-center gap-3">
-            <div v-for="item in legend" :key="item.label" class="flex items-center gap-1.5">
-              <div class="h-4 w-4 rounded" :style="{ backgroundColor: item.color }" />
-              <span class="text-xs text-gray-500">{{ item.label }}</span>
+          <div class="mt-4">
+            <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">상태 안내</p>
+            <div class="flex flex-wrap items-center gap-3">
+              <div v-for="item in legend" :key="item.label" class="flex items-center gap-1.5">
+                <div class="h-4 w-4 rounded" :style="{ backgroundColor: item.color }" />
+                <span class="text-xs text-gray-500">{{ item.label }}</span>
+              </div>
             </div>
           </div>
           <div class="mt-4">
@@ -123,6 +135,39 @@
             </div>
           </div>
         </div>
+
+        <div v-if="!isHost" class="rounded-card bg-white p-4 shadow-sm">
+          <button
+            type="button"
+            class="text-sm font-semibold text-gray-500 underline underline-offset-4"
+            @click="showHostRecovery = !showHostRecovery"
+          >
+            방장인가요?
+          </button>
+
+          <div v-if="showHostRecovery" class="mt-4 rounded-btn border border-gray-200 bg-gray-50 p-3">
+            <label class="mb-2 block text-sm font-semibold text-gray-700">방장 코드 입력</label>
+            <div class="flex gap-2">
+              <input
+                v-model="hostCodeInput"
+                type="text"
+                maxlength="6"
+                placeholder="예: A7K9Q2"
+                class="h-11 flex-1 rounded-btn border border-gray-200 bg-white px-3 text-sm uppercase outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                type="button"
+                :disabled="recoveringHost"
+                class="h-11 shrink-0 rounded-btn bg-primary px-4 text-sm font-bold text-white transition-all duration-150 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400"
+                @click="recoverHostAccess"
+              >
+                <span v-if="recoveringHost">확인 중...</span>
+                <span v-else>권한 복구</span>
+              </button>
+            </div>
+            <p class="mt-2 text-xs text-gray-400">약속 생성 완료 화면에서 받은 6자리 방장 코드를 입력해 주세요.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -145,6 +190,7 @@ import HeatmapCalendar from '../components/HeatmapCalendar.vue'
 import ParticipantSheet from '../components/ParticipantSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
 import { buildGoogleCalendarUrl, downloadIcsFile } from '../lib/calendar.js'
+import { getStoredHostToken, storeHostToken } from '../lib/hostAccess.js'
 import {
   formatDisplayDate,
   getPerfectMatchDates,
@@ -164,7 +210,13 @@ const selectedDate = ref('')
 const toastVisible = ref(false)
 const toastMsg = ref('')
 const toastType = ref('success')
+const showHostRecovery = ref(false)
+const hostCodeInput = ref('')
+const recoveringHost = ref(false)
+const confirmingDate = ref('')
+const storedHostToken = ref(getStoredHostToken(route.params.id))
 
+const isHost = computed(() => Boolean(storedHostToken.value && storedHostToken.value === store.meeting?.host_token))
 const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
 const recommendedDates = computed(() => getTopRecommendedDates(store.responses, 3))
@@ -214,7 +266,12 @@ onMounted(async () => {
 
   if (!meeting || store.error) return
 
-  const canOpenResult = hasVotedForMeeting(route.params.id) || (meeting.status === 'confirmed' && meeting.confirmed_date)
+  storedHostToken.value = getStoredHostToken(route.params.id)
+
+  const canOpenResult =
+    hasVotedForMeeting(route.params.id) ||
+    isHost.value ||
+    (meeting.status === 'confirmed' && meeting.confirmed_date)
 
   if (!canOpenResult) {
     router.replace({
@@ -260,6 +317,40 @@ function subscribeRealtime() {
 function openSheet(date) {
   selectedDate.value = date
   sheetVisible.value = true
+}
+
+async function confirmDate(date) {
+  confirmingDate.value = date
+
+  try {
+    await store.confirmMeeting(route.params.id, date)
+    showToast(`${formatDisplayDate(date)}로 약속 날짜를 확정했어요.`)
+  } catch (error) {
+    console.error('[WHENSDAY] failed to confirm meeting', error)
+    showToast(error?.message || '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.', 'error')
+  } finally {
+    confirmingDate.value = ''
+  }
+}
+
+async function recoverHostAccess() {
+  if (!hostCodeInput.value.trim()) return
+
+  recoveringHost.value = true
+
+  try {
+    const hostToken = await store.recoverHostAccess(route.params.id, hostCodeInput.value)
+    storeHostToken(route.params.id, hostToken)
+    storedHostToken.value = hostToken
+    showHostRecovery.value = false
+    hostCodeInput.value = ''
+    showToast('방장 권한이 복구됐어요.')
+  } catch (error) {
+    console.error('[WHENSDAY] failed to recover host access', error)
+    showToast(error?.message || '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.', 'error')
+  } finally {
+    recoveringHost.value = false
+  }
 }
 
 function openGoogleCalendar() {

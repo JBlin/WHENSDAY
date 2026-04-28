@@ -51,7 +51,10 @@
         <div class="rounded-card border border-primary/15 bg-primary/[0.04] p-4">
           <p class="text-sm font-semibold text-primary">약속 날짜가 이미 확정됐어요</p>
           <p class="mt-2 text-xl font-bold text-gray-900">{{ confirmedDateLabel }}</p>
-          <p class="mt-2 text-sm text-gray-500">확정된 약속이라 더 이상 날짜를 제출할 수 없어요. 결과 화면에서 자세한 내용을 확인해 주세요.</p>
+          <p class="mt-2 text-sm text-gray-500">
+            확정된 약속이라 더 이상 날짜를 제출할 수 없어요.
+            결과 화면에서 자세한 내용을 확인해 주세요.
+          </p>
           <RouterLink
             :to="`/meeting/${store.meeting.id}/result`"
             class="mt-4 inline-flex h-11 items-center justify-center rounded-btn bg-primary px-4 text-sm font-bold text-white transition-all duration-150 active:scale-95"
@@ -112,6 +115,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import CalendarPicker from '../components/CalendarPicker.vue'
 import ToastMessage from '../components/ToastMessage.vue'
+import { hasStoredHostAccess } from '../lib/hostAccess.js'
 import { formatDisplayDate } from '../lib/meetingUtils.js'
 import { hasVotedForMeeting, markMeetingAsVoted } from '../lib/voteAccess.js'
 import { supabase } from '../lib/supabase.js'
@@ -130,9 +134,10 @@ const toastMsg = ref('')
 const toastType = ref('success')
 const hasVoted = ref(hasVotedForMeeting(route.params.id))
 
+const isHost = computed(() => hasStoredHostAccess(route.params.id, store.meeting?.host_token || ''))
 const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
-const canViewResult = computed(() => submitted.value || hasVoted.value || isConfirmed.value)
+const canViewResult = computed(() => submitted.value || hasVoted.value || isConfirmed.value || isHost.value)
 
 let realtimeChannel = null
 
