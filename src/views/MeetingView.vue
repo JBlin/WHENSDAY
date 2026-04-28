@@ -5,6 +5,7 @@
         <RouterLink to="/" class="font-brand shrink-0 text-lg font-black uppercase tracking-widest text-primary">W</RouterLink>
         <div class="min-w-0 flex-1">
           <p v-if="store.meeting" class="truncate text-sm font-bold text-gray-900">{{ store.meeting.title }}</p>
+          <p v-if="store.meeting?.region_name" class="mt-0.5 text-xs font-medium text-primary/80">약속 지역 · {{ store.meeting.region_name }}</p>
           <p class="mt-0.5 text-xs text-gray-400">
             <span v-if="store.loading">불러오는 중...</span>
             <span v-else-if="store.responses.length">현재 {{ store.responses.length }}명 참여 중</span>

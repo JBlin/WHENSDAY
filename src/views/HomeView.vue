@@ -22,37 +22,33 @@
         </div>
 
         <div>
-          <div class="mb-1.5 flex items-start justify-between gap-3">
-            <div>
-              <label class="block text-sm font-semibold text-gray-700">약속 지역</label>
-              <p class="mt-1 text-xs text-gray-400">
-                지역을 선택하면 가능한 날짜를 고를 때 날씨와 바다 정보를 함께 볼 수 있어요.
-              </p>
-            </div>
+          <label class="mb-1.5 block text-sm font-semibold text-gray-700">약속 지역</label>
+          <p class="mb-2 text-xs text-gray-400">
+            지역을 선택하면 가능한 날짜를 고를 때 날씨와 바다 정보를 함께 볼 수 있어요.
+          </p>
 
-            <button
-              type="button"
-              class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all"
-              :class="isSelectedRegionFavorite ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'"
-              @click="toggleFavoriteSelectedRegion"
-            >
-              {{ isSelectedRegionFavorite ? '★ 자주 가는 지역' : '☆ 자주 가는 지역으로 저장' }}
-            </button>
-          </div>
-
-          <button
-            type="button"
-            class="flex w-full items-center gap-3 rounded-btn border border-gray-200 bg-gray-50 px-4 py-3 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+          <div
+            class="flex h-12 w-full cursor-pointer items-center gap-2 rounded-btn border border-gray-200 bg-gray-50 px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
             @click="regionPickerVisible = true"
           >
-            <div class="min-w-0 flex-1">
-              <p class="text-sm font-semibold text-gray-800">선택된 지역: {{ selectedRegion.name }}</p>
-              <p class="mt-0.5 text-xs text-gray-400">{{ selectedRegionSummary }}</p>
-            </div>
-            <span class="shrink-0 rounded-full bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary">
-              지역 선택하기
+            <span class="flex-1 truncate text-sm" :class="selectedRegion ? 'font-semibold text-gray-800' : 'text-gray-400'">
+              {{ selectedRegion ? selectedRegion.name : '지역명, 도시, 바다 포인트 검색' }}
             </span>
-          </button>
+            <button
+              v-if="selectedRegion"
+              type="button"
+              class="shrink-0 rounded-full p-0.5 text-gray-400 hover:text-gray-600"
+              @click.stop="clearRegion"
+              aria-label="지역 선택 초기화"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+              </svg>
+            </button>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+            </svg>
+          </div>
         </div>
 
         <div>
@@ -172,6 +168,7 @@
     :favorite-region-ids="favoriteRegionIds"
     @update:open="regionPickerVisible = $event"
     @select="handleRegionSelect"
+    @toggle-favorite="handleFavoriteToggle"
   />
 
   <ToastMessage :visible="toastVisible" :message="toastMsg" :type="toastType" />
@@ -200,7 +197,7 @@ const submitting = ref(false)
 const errorMsg = ref('')
 const rangePickerVisible = ref(false)
 const regionPickerVisible = ref(false)
-const selectedRegionId = ref(DEFAULT_REGION.id)
+const selectedRegionId = ref(null)
 const favoriteRegionIds = ref(getFavoriteRegionIds())
 
 const shareVisible = ref(false)
@@ -214,15 +211,9 @@ const toastMsg = ref('')
 const toastType = ref('success')
 
 const today = formatLocalDate(new Date())
-const selectedRegion = computed(() => findRegionById(selectedRegionId.value) || DEFAULT_REGION)
-const isSelectedRegionFavorite = computed(() => favoriteRegionIds.value.includes(selectedRegion.value.id))
-const selectedRegionSummary = computed(() => {
-  if (selectedRegion.value.fishingPlaceName) {
-    return `${selectedRegion.value.category} · 바다 포인트 ${selectedRegion.value.fishingPlaceName}`
-  }
-
-  return `${selectedRegion.value.category} · 날씨와 온도 정보를 볼 수 있어요.`
-})
+const selectedRegion = computed(() =>
+  selectedRegionId.value ? findRegionById(selectedRegionId.value) : null
+)
 
 const maxDate = computed(() => {
   const date = new Date()
@@ -260,6 +251,9 @@ async function create() {
     return
   }
 
+  const regionToSave = selectedRegion.value || DEFAULT_REGION
+  console.log('[Whensday] selectedRegion before create:', selectedRegion.value)
+
   submitting.value = true
 
   try {
@@ -267,7 +261,7 @@ async function create() {
       title.value.trim(),
       dateFrom.value,
       dateTo.value,
-      selectedRegion.value
+      regionToSave
     )
 
     createdId.value = meeting.id
@@ -305,14 +299,16 @@ function closeShareSheet() {
   shareVisible.value = false
 }
 
+function clearRegion() {
+  selectedRegionId.value = null
+}
+
 function handleRegionSelect(regionId) {
   selectedRegionId.value = regionId
 }
 
-function toggleFavoriteSelectedRegion() {
-  const wasFavorite = isSelectedRegionFavorite.value
-  favoriteRegionIds.value = toggleFavoriteRegion(selectedRegion.value.id)
-  showToast(wasFavorite ? '자주 가는 지역에서 제거했어요.' : '자주 가는 지역으로 저장했어요.')
+function handleFavoriteToggle(regionId) {
+  favoriteRegionIds.value = toggleFavoriteRegion(regionId)
 }
 
 function goToMeeting() {

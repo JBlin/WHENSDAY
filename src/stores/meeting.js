@@ -173,6 +173,7 @@ export const useMeetingStore = defineStore('meeting', () => {
     assertSupabaseConfigured()
 
     const regionFields = buildRegionMeetingFields(region)
+    console.log('[Whensday] createMeeting regionFields:', regionFields)
     const baseMeeting = {
       id: crypto.randomUUID(),
       title,
@@ -326,6 +327,7 @@ export const useMeetingStore = defineStore('meeting', () => {
         const attempt = attempts[index]
 
         try {
+          console.log('[Whensday] createMeeting payload (attempt', index + 1, '):', attempt.payload)
           await insertMeetingRecord(attempt.payload)
           return normalizeMeetingRecord(attempt.result)
         } catch (err) {
