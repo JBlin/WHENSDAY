@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-gradient-to-b from-primary-light to-white flex flex-col">
     <div class="flex flex-col items-center pt-20 pb-10 px-6">
-      <h1 class="text-4xl font-black tracking-widest text-primary uppercase">SetDate</h1>
+      <h1 class="font-brand text-4xl font-black tracking-widest text-primary uppercase">WHENSDAY</h1>
       <p class="mt-2 text-gray-500 text-sm font-medium">우리 진짜 언제 볼까?</p>
     </div>
 
@@ -78,7 +78,7 @@
         </div>
 
         <div class="flex items-center gap-2 mb-1">
-          <span class="text-base font-bold text-primary">SetDate</span>
+          <span class="font-brand text-base font-black tracking-wide text-primary uppercase">WHENSDAY</span>
           <h3 class="text-base font-bold text-gray-900">약속이 만들어졌어요</h3>
         </div>
         <p class="text-sm text-gray-500 mb-5">링크를 친구들에게 공유해보세요.</p>
@@ -221,7 +221,7 @@ async function create() {
     shareUrl.value = buildMeetingUrl(meeting.id)
     shareVisible.value = true
   } catch (error) {
-    console.error('[SetDate] failed to create meeting', error)
+    console.error('[WHENSDAY] failed to create meeting', error)
     errorMsg.value = error?.message || '약속 만들기에 실패했어요. 다시 시도해 주세요.'
   } finally {
     submitting.value = false

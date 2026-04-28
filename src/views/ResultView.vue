@@ -2,7 +2,7 @@
   <div class="min-h-screen bg-white flex flex-col">
     <header class="bg-white px-5 pt-5 pb-4 shadow-sm sticky top-0 z-10">
       <div class="flex items-center gap-3">
-        <RouterLink to="/" class="text-lg font-black tracking-widest text-primary uppercase shrink-0">S</RouterLink>
+        <RouterLink to="/" class="font-brand text-lg font-black tracking-widest text-primary uppercase shrink-0">W</RouterLink>
         <div class="flex-1 min-w-0">
           <p v-if="store.meeting" class="text-sm font-bold text-gray-900 truncate">{{ store.meeting.title }}</p>
           <div class="flex items-center gap-2 mt-0.5">
