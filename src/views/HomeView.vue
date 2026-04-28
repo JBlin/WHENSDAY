@@ -109,7 +109,7 @@
           결과 보러가기
         </button>
 
-        <div class="rounded-card border border-amber-200 bg-amber-50 p-4">
+        <div v-if="hostCode" class="rounded-card border border-amber-200 bg-amber-50 p-4">
           <p class="text-sm font-semibold text-amber-800">방장 코드: {{ hostCode }}</p>
           <p class="mt-2 text-sm text-amber-700">
             기기를 바꾸거나 권한이 사라진 경우 이 코드로 방장 권한을 복구할 수 있어요.

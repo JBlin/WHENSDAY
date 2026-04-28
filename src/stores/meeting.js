@@ -10,6 +10,8 @@ const GENERIC_REQUEST_ERROR_MESSAGE = '요청 처리 중 문제가 발생했어�
 const NOT_FOUND_ERROR_MESSAGE = '약속 정보를 찾을 수 없어요.'
 const CONFIRMED_MEETING_ERROR_MESSAGE = '이미 확정된 약속이라 더 이상 제출할 수 없어요.'
 const INVALID_HOST_CODE_ERROR_MESSAGE = '방장 코드가 맞지 않아요.'
+const HOST_RECOVERY_UNAVAILABLE_ERROR_MESSAGE =
+  '이 기기에서 만든 약속이 아니라면 아직 방장 권한을 복구할 수 없어요.'
 
 function createUserFacingError(message = GENERIC_REQUEST_ERROR_MESSAGE) {
   return new Error(message)
@@ -22,6 +24,49 @@ function createHostCode(length = 6) {
   return Array.from(array, (value) => chars[value % chars.length]).join('')
 }
 
+function getSupabaseErrorText(err) {
+  return [err?.message, err?.details, err?.hint].filter(Boolean).join(' ').toLowerCase()
+}
+
+function hasSchemaMismatch(err, columns = []) {
+  if (!err) return false
+
+  if (err.code === 'PGRST204' || err.code === '42703') return true
+
+  const text = getSupabaseErrorText(err)
+
+  return columns.some((column) => text.includes(column.toLowerCase()) && text.includes('column'))
+}
+
+function normalizeMeetingRecord(data) {
+  if (!data) return null
+
+  return {
+    ...data,
+    host_token: data.host_token || '',
+    status: data.status || 'open',
+    confirmed_date: data.confirmed_date || null,
+  }
+}
+
+async function insertMeetingRecord(payload) {
+  const { error: err } = await supabase.from('meetings').insert(payload)
+
+  if (err) throw err
+}
+
+async function selectMeetingRecord(id, columns) {
+  const { data, error: err } = await supabase
+    .from('meetings')
+    .select(columns)
+    .eq('id', id)
+    .single()
+
+  if (err) throw err
+
+  return data
+}
+
 export const useMeetingStore = defineStore('meeting', () => {
   const meeting = ref(null)
   const responses = ref([])
@@ -30,6 +75,10 @@ export const useMeetingStore = defineStore('meeting', () => {
 
   function logSupabaseError(context, details) {
     console.error(`[WHENSDAY] ${context}`, details)
+  }
+
+  function logCompatibilityFallback(context, details) {
+    console.warn(`[WHENSDAY] ${context}`, details)
   }
 
   function buildSupabaseError(err, options = {}) {
@@ -49,16 +98,34 @@ export const useMeetingStore = defineStore('meeting', () => {
     try {
       assertSupabaseConfigured()
 
-      const { data, error: err } = await supabase
-        .from('meetings')
-        .select('id,title,date_from,date_to,host_token,status,confirmed_date,created_at')
-        .eq('id', id)
-        .single()
+      let data
 
-      if (err) throw err
+      try {
+        data = await selectMeetingRecord(
+          id,
+          'id,title,date_from,date_to,host_token,status,confirmed_date,created_at'
+        )
+      } catch (err) {
+        if (!hasSchemaMismatch(err, ['host_token', 'status', 'confirmed_date'])) {
+          throw err
+        }
 
-      meeting.value = data
-      return data
+        logCompatibilityFallback('meeting select fallback: optional columns unavailable', err)
+
+        try {
+          data = await selectMeetingRecord(id, 'id,title,date_from,date_to,host_token,created_at')
+        } catch (fallbackErr) {
+          if (!hasSchemaMismatch(fallbackErr, ['host_token'])) {
+            throw fallbackErr
+          }
+
+          logCompatibilityFallback('meeting select fallback: host token column unavailable', fallbackErr)
+          data = await selectMeetingRecord(id, 'id,title,date_from,date_to,created_at')
+        }
+      }
+
+      meeting.value = normalizeMeetingRecord(data)
+      return meeting.value
     } catch (err) {
       logSupabaseError('failed to fetch meeting', err)
       error.value = buildSupabaseError(err).message
@@ -95,23 +162,92 @@ export const useMeetingStore = defineStore('meeting', () => {
   async function createMeeting(title, dateFrom, dateTo) {
     assertSupabaseConfigured()
 
-    const newMeeting = {
+    const baseMeeting = {
       id: crypto.randomUUID(),
       title,
       date_from: dateFrom,
       date_to: dateTo,
       host_token: crypto.randomUUID(),
-      host_code: createHostCode(),
-      status: 'open',
-      confirmed_date: null,
     }
+    const hostCode = createHostCode()
+    const attempts = [
+      {
+        payload: {
+          ...baseMeeting,
+          host_code: hostCode,
+          status: 'open',
+          confirmed_date: null,
+        },
+        result: {
+          ...baseMeeting,
+          host_code: hostCode,
+          status: 'open',
+          confirmed_date: null,
+        },
+        schemaColumns: ['host_code', 'status', 'confirmed_date'],
+      },
+      {
+        payload: {
+          ...baseMeeting,
+          status: 'open',
+          confirmed_date: null,
+        },
+        result: {
+          ...baseMeeting,
+          host_code: '',
+          status: 'open',
+          confirmed_date: null,
+        },
+        schemaColumns: ['status', 'confirmed_date'],
+      },
+      {
+        payload: {
+          ...baseMeeting,
+        },
+        result: {
+          ...baseMeeting,
+          host_code: '',
+          status: 'open',
+          confirmed_date: null,
+        },
+        schemaColumns: ['host_token'],
+      },
+      {
+        payload: {
+          id: baseMeeting.id,
+          title: baseMeeting.title,
+          date_from: baseMeeting.date_from,
+          date_to: baseMeeting.date_to,
+        },
+        result: {
+          ...baseMeeting,
+          host_code: '',
+          status: 'open',
+          confirmed_date: null,
+        },
+        schemaColumns: [],
+      },
+    ]
 
     try {
-      const { error: err } = await supabase.from('meetings').insert(newMeeting)
+      for (let index = 0; index < attempts.length; index += 1) {
+        const attempt = attempts[index]
 
-      if (err) throw err
+        try {
+          await insertMeetingRecord(attempt.payload)
+          return normalizeMeetingRecord(attempt.result)
+        } catch (err) {
+          const hasNextAttempt = index < attempts.length - 1
 
-      return newMeeting
+          if (!hasNextAttempt || !hasSchemaMismatch(err, attempt.schemaColumns)) {
+            throw err
+          }
+
+          logCompatibilityFallback('meeting insert fallback: optional columns unavailable', err)
+        }
+      }
+
+      return normalizeMeetingRecord(attempts[attempts.length - 1]?.result || null)
     } catch (err) {
       logSupabaseError('failed to create meeting', err)
       throw buildSupabaseError(err)
@@ -183,6 +319,10 @@ export const useMeetingStore = defineStore('meeting', () => {
 
       if (err?.code === 'PGRST116') {
         throw createUserFacingError(INVALID_HOST_CODE_ERROR_MESSAGE)
+      }
+
+      if (hasSchemaMismatch(err, ['host_code'])) {
+        throw createUserFacingError(HOST_RECOVERY_UNAVAILABLE_ERROR_MESSAGE)
       }
 
       throw buildSupabaseError(err)

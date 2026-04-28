@@ -190,7 +190,7 @@ import HeatmapCalendar from '../components/HeatmapCalendar.vue'
 import ParticipantSheet from '../components/ParticipantSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
 import { buildGoogleCalendarUrl, downloadIcsFile } from '../lib/calendar.js'
-import { getStoredHostToken, storeHostToken } from '../lib/hostAccess.js'
+import { getStoredHostToken, hasStoredHostAccess, storeHostToken } from '../lib/hostAccess.js'
 import {
   formatDisplayDate,
   getPerfectMatchDates,
@@ -216,7 +216,10 @@ const recoveringHost = ref(false)
 const confirmingDate = ref('')
 const storedHostToken = ref(getStoredHostToken(route.params.id))
 
-const isHost = computed(() => Boolean(storedHostToken.value && storedHostToken.value === store.meeting?.host_token))
+const isHost = computed(() => {
+  if (!storedHostToken.value) return false
+  return hasStoredHostAccess(route.params.id, store.meeting?.host_token || '')
+})
 const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
 const recommendedDates = computed(() => getTopRecommendedDates(store.responses, 3))

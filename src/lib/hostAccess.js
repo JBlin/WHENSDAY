@@ -25,6 +25,12 @@ export function storeHostToken(meetingId, hostToken) {
 }
 
 export function hasStoredHostAccess(meetingId, hostToken) {
-  if (!meetingId || !hostToken) return false
-  return getStoredHostToken(meetingId) === hostToken
+  if (!meetingId) return false
+
+  const storedToken = getStoredHostToken(meetingId)
+
+  if (!storedToken) return false
+  if (!hostToken) return true
+
+  return storedToken === hostToken
 }
