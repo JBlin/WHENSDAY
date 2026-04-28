@@ -1,4 +1,4 @@
-import { parseLocalDate } from './meetingUtils.js'
+import { addDays, parseLocalDate } from './meetingUtils.js'
 import {
   DEFAULT_FORECAST_REGION,
   DEFAULT_SEA_AREA,
@@ -29,18 +29,13 @@ export async function fetchForecast(options) {
   }
 
   const response = await fetch(`/api/forecast?${params.toString()}`)
+  const payload = await response.json().catch(() => null)
 
-  if (!response.ok) {
+  if (!response.ok || !payload?.ok) {
     throw new Error('참고 정보를 불러오지 못했어요.')
   }
 
-  const payload = await response.json()
-
-  if (!payload?.success) {
-    throw new Error('참고 정보를 불러오지 못했어요.')
-  }
-
-  return payload
+  return normalizeForecastPayload(payload)
 }
 
 export function filterForecastItemsByRange(items, dateFrom, dateTo) {
@@ -55,6 +50,126 @@ export function filterForecastItemsByRange(items, dateFrom, dateTo) {
     const target = parseLocalDate(item.date)
     return target >= start && target <= end
   })
+}
+
+function getBaseDateFromTmFc(tmFc) {
+  if (!tmFc || tmFc.length < 8) return ''
+  return `${tmFc.slice(0, 4)}-${tmFc.slice(4, 6)}-${tmFc.slice(6, 8)}`
+}
+
+function buildDateFromOffset(tmFc, dayOffset) {
+  const baseDate = getBaseDateFromTmFc(tmFc)
+  if (!baseDate || dayOffset == null) return ''
+  return addDays(baseDate, dayOffset)
+}
+
+function groupByDayOffset(items) {
+  return items.reduce((map, item) => {
+    const key = String(item.dayOffset)
+    const current = map.get(key) || []
+    current.push(item)
+    map.set(key, current)
+    return map
+  }, new Map())
+}
+
+function pickPreferredPeriodItem(items) {
+  return (
+    items.find((item) => item.period === 'am') ||
+    items.find((item) => item.period === 'pm') ||
+    items.find((item) => item.period === 'all') ||
+    items[0] ||
+    null
+  )
+}
+
+function normalizeWeatherItems(payload) {
+  const grouped = groupByDayOffset(payload.items || [])
+
+  return [...grouped.entries()]
+    .map(([dayOffsetKey, items]) => {
+      const dayOffset = Number(dayOffsetKey)
+      const preferred = pickPreferredPeriodItem(items)
+      const rainPercentValues = items
+        .map((item) => item.rainPercent)
+        .filter((value) => Number.isFinite(value))
+
+      if (!preferred) return null
+
+      return {
+        date: buildDateFromOffset(payload.tmFc, dayOffset),
+        weather: preferred.weather || '제공 전',
+        rainPercent: rainPercentValues.length ? Math.max(...rainPercentValues) : 0,
+      }
+    })
+    .filter((item) => item?.date)
+    .sort((left, right) => left.date.localeCompare(right.date))
+}
+
+function normalizeTemperatureItems(payload) {
+  return (payload.items || [])
+    .map((item) => ({
+      date: buildDateFromOffset(payload.tmFc, item.dayOffset),
+      tempMin: item.tempMin,
+      tempMax: item.tempMax,
+    }))
+    .filter((item) => item.date)
+    .sort((left, right) => left.date.localeCompare(right.date))
+}
+
+function normalizeSeaItems(payload) {
+  const grouped = groupByDayOffset(payload.items || [])
+
+  return [...grouped.entries()]
+    .map(([dayOffsetKey, items]) => {
+      const dayOffset = Number(dayOffsetKey)
+      const preferred = pickPreferredPeriodItem(items)
+      const waveMinValues = items
+        .map((item) => item.waveMin)
+        .filter((value) => Number.isFinite(value))
+      const waveMaxValues = items
+        .map((item) => item.waveMax)
+        .filter((value) => Number.isFinite(value))
+
+      if (!preferred) return null
+
+      return {
+        date: buildDateFromOffset(payload.tmFc, dayOffset),
+        weather: preferred.weather || '제공 전',
+        waveMin: waveMinValues.length ? Math.min(...waveMinValues) : null,
+        waveMax: waveMaxValues.length ? Math.max(...waveMaxValues) : null,
+      }
+    })
+    .filter((item) => item?.date)
+    .sort((left, right) => left.date.localeCompare(right.date))
+}
+
+export function normalizeForecastPayload(payload) {
+  const normalized = {
+    ok: Boolean(payload?.ok),
+    type: payload?.type || '',
+    tmFc: payload?.tmFc || '',
+    noData: Boolean(payload?.noData),
+    message: payload?.message || FORECAST_EMPTY_MESSAGE,
+    items: [],
+  }
+
+  if (normalized.type === 'weather') {
+    normalized.items = normalizeWeatherItems(payload)
+    return normalized
+  }
+
+  if (normalized.type === 'temperature') {
+    normalized.items = normalizeTemperatureItems(payload)
+    return normalized
+  }
+
+  if (normalized.type === 'sea') {
+    normalized.items = normalizeSeaItems(payload)
+    return normalized
+  }
+
+  return normalized
 }
 
 export function formatForecastDate(dateStr) {
@@ -72,15 +187,24 @@ export function formatForecastItem(item, type) {
   const dateLabel = formatForecastDate(item?.date)
 
   if (type === 'weather') {
-    return `${dateLabel} · ${item.weather} · 강수확률 ${item.rainProbability}%`
+    return `${dateLabel} · ${item.weather} · 강수확률 ${item.rainPercent}%`
   }
 
   if (type === 'temperature') {
-    return `${dateLabel} · 최저 ${item.minTemp}° / 최고 ${item.maxTemp}°`
+    return `${dateLabel} · 최저 ${item.tempMin}° / 최고 ${item.tempMax}°`
   }
 
   if (type === 'sea') {
-    return `${dateLabel} · ${item.weather} · 파고 ${item.waveHeight}`
+    const waveLabel =
+      item.waveMin != null && item.waveMax != null
+        ? `${item.waveMin}~${item.waveMax}m`
+        : item.waveMin != null
+          ? `${item.waveMin}m`
+          : item.waveMax != null
+            ? `${item.waveMax}m`
+            : '제공 전'
+
+    return `${dateLabel} · ${item.weather} · 파고 ${waveLabel}`
   }
 
   return dateLabel

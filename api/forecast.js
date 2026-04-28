@@ -5,10 +5,12 @@ import {
   SEA_AREA_MAP,
 } from '../src/lib/forecastConfig.js'
 
-const KMA_BASE_URL = 'https://apihub.kma.go.kr/api/typ02/openApi/MidFcstInfoService'
+const KMA_BASE_URL = 'https://apis.data.go.kr/1360000/MidFcstInfoService'
 const FORECAST_DAY_RANGE = [4, 5, 6, 7, 8, 9, 10]
+const KMA_NO_DATA_CODE = '03'
+const KMA_INVALID_KEY_CODE = '30'
 
-function getKstNow(now = new Date()) {
+function getKstParts(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Seoul',
     year: 'numeric',
@@ -19,64 +21,57 @@ function getKstNow(now = new Date()) {
     hour12: false,
   }).formatToParts(now)
 
-  const partMap = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return Object.fromEntries(parts.map((part) => [part.type, part.value]))
+}
 
-  return new Date(
-    Date.UTC(
-      Number(partMap.year),
-      Number(partMap.month) - 1,
-      Number(partMap.day),
-      Number(partMap.hour),
-      Number(partMap.minute),
-      0,
-      0
+function formatTmFc(year, month, day, hour) {
+  return `${year}${month}${day}${hour}`
+}
+
+function getLatestTmFc(now = new Date()) {
+  const parts = getKstParts(now)
+  const currentHour = Number(parts.hour)
+
+  if (currentHour < 6) {
+    const previousDate = new Date(
+      Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day))
     )
+    previousDate.setUTCDate(previousDate.getUTCDate() - 1)
+
+    return formatTmFc(
+      String(previousDate.getUTCFullYear()),
+      String(previousDate.getUTCMonth() + 1).padStart(2, '0'),
+      String(previousDate.getUTCDate()).padStart(2, '0'),
+      '1800'
+    )
+  }
+
+  if (currentHour < 18) {
+    return formatTmFc(parts.year, parts.month, parts.day, '0600')
+  }
+
+  return formatTmFc(parts.year, parts.month, parts.day, '1800')
+}
+
+function getPreviousTmFc(tmFc) {
+  const year = Number(tmFc.slice(0, 4))
+  const month = Number(tmFc.slice(4, 6))
+  const day = Number(tmFc.slice(6, 8))
+  const time = tmFc.slice(8, 12)
+
+  if (time === '1800') {
+    return formatTmFc(String(year), String(month).padStart(2, '0'), String(day).padStart(2, '0'), '0600')
+  }
+
+  const previousDate = new Date(Date.UTC(year, month - 1, day))
+  previousDate.setUTCDate(previousDate.getUTCDate() - 1)
+
+  return formatTmFc(
+    String(previousDate.getUTCFullYear()),
+    String(previousDate.getUTCMonth() + 1).padStart(2, '0'),
+    String(previousDate.getUTCDate()).padStart(2, '0'),
+    '1800'
   )
-}
-
-function formatPseudoDate(date) {
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
-  const hour = String(date.getUTCHours()).padStart(2, '0')
-  const minute = String(date.getUTCMinutes()).padStart(2, '0')
-
-  return `${year}${month}${day}${hour}${minute}`
-}
-
-function formatIsoDate(date) {
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function addDays(baseYmd, days) {
-  const year = Number(baseYmd.slice(0, 4))
-  const month = Number(baseYmd.slice(4, 6))
-  const day = Number(baseYmd.slice(6, 8))
-  const target = new Date(Date.UTC(year, month - 1, day))
-  target.setUTCDate(target.getUTCDate() + days)
-  return formatIsoDate(target)
-}
-
-function getLatestTmFc() {
-  const kstNow = getKstNow()
-  const hour = kstNow.getUTCHours()
-
-  if (hour < 6) {
-    kstNow.setUTCDate(kstNow.getUTCDate() - 1)
-    kstNow.setUTCHours(18, 0, 0, 0)
-    return formatPseudoDate(kstNow)
-  }
-
-  if (hour < 18) {
-    kstNow.setUTCHours(6, 0, 0, 0)
-    return formatPseudoDate(kstNow)
-  }
-
-  kstNow.setUTCHours(18, 0, 0, 0)
-  return formatPseudoDate(kstNow)
 }
 
 function toNumber(value) {
@@ -85,24 +80,50 @@ function toNumber(value) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
-function extractFirstItem(payload) {
-  const items = payload?.response?.body?.items?.item
-
-  if (Array.isArray(items)) {
-    return items[0] || null
-  }
-
-  return items || null
-}
-
-function createApiError(status, message, details) {
+function createApiError(status, message, details = {}) {
   const error = new Error(message)
   error.status = status
   error.details = details
   return error
 }
 
-async function requestKma(endpoint, params) {
+function extractKmaItems(payload) {
+  const items = payload?.response?.body?.items?.item
+
+  if (Array.isArray(items)) return items
+  if (items) return [items]
+  return []
+}
+
+function logKmaError(endpoint, tmFc, header, extra = {}) {
+  const resultCode = String(header?.resultCode || '')
+  const resultMsg = header?.resultMsg || 'UNKNOWN'
+
+  console.error('[WHENSDAY] KMA API error', {
+    endpoint,
+    tmFc,
+    resultCode,
+    resultMsg,
+    ...extra,
+  })
+
+  if (resultCode === KMA_INVALID_KEY_CODE) {
+    console.error('[WHENSDAY] SERVICE_KEY_IS_NOT_REGISTERED', {
+      endpoint,
+      tmFc,
+    })
+  }
+}
+
+function parseJsonSafely(text) {
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+async function requestKma(endpoint, params, tmFc) {
   const serviceKey = process.env.KMA_SERVICE_KEY
 
   if (!serviceKey) {
@@ -111,118 +132,195 @@ async function requestKma(endpoint, params) {
 
   const url = new URL(`${KMA_BASE_URL}/${endpoint}`)
   url.search = new URLSearchParams({
-    pageNo: '1',
+    serviceKey,
     numOfRows: '10',
+    pageNo: '1',
     dataType: 'JSON',
-    authKey: serviceKey,
+    tmFc,
     ...params,
   }).toString()
 
   const response = await fetch(url.toString())
+  const text = await response.text()
+  const payload = parseJsonSafely(text)
+  const header = payload?.response?.header
+  const resultCode = String(header?.resultCode || '')
+  const resultMsg = header?.resultMsg || ''
+
+  if (header && resultCode !== '00') {
+    logKmaError(endpoint, tmFc, header)
+  }
 
   if (!response.ok) {
     throw createApiError(502, 'KMA API request failed.', {
       status: response.status,
       statusText: response.statusText,
+      resultCode,
+      resultMsg,
+      rawText: text.slice(0, 300),
+      isInvalidKey: response.status === 401 || resultCode === KMA_INVALID_KEY_CODE,
     })
   }
 
-  const payload = await response.json()
-  const resultCode = String(payload?.response?.header?.resultCode || '')
+  if (!payload || !header) {
+    throw createApiError(502, 'KMA API returned an unexpected response.', {
+      rawText: text.slice(0, 300),
+    })
+  }
+
+  if (resultCode === KMA_NO_DATA_CODE) {
+    throw createApiError(200, 'No forecast data available.', {
+      resultCode,
+      resultMsg,
+      isNoData: true,
+    })
+  }
+
+  if (resultCode === KMA_INVALID_KEY_CODE) {
+    throw createApiError(502, 'Invalid KMA service key.', {
+      resultCode,
+      resultMsg,
+      isInvalidKey: true,
+    })
+  }
 
   if (resultCode !== '00') {
-    throw createApiError(502, 'KMA API returned an error response.', payload?.response?.header)
+    throw createApiError(502, 'KMA API returned an error response.', {
+      resultCode,
+      resultMsg,
+    })
   }
 
-  return extractFirstItem(payload)
+  return {
+    header,
+    items: extractKmaItems(payload),
+  }
 }
 
-function normalizeWeatherForecast(item, tmFc) {
-  if (!item) return []
+function normalizeWeatherForecast(items) {
+  const source = items[0]
 
-  const baseDate = tmFc.slice(0, 8)
+  if (!source) return []
 
-  return FORECAST_DAY_RANGE.map((day) => {
-    const weather = item[`wf${day}Pm`] || item[`wf${day}Am`] || item[`wf${day}`] || ''
-    const rainProbability =
-      toNumber(item[`rnSt${day}Pm`]) ??
-      toNumber(item[`rnSt${day}Am`]) ??
-      toNumber(item[`rnSt${day}`])
+  const normalized = []
 
-    if (!weather && rainProbability == null) {
+  FORECAST_DAY_RANGE.forEach((dayOffset) => {
+    const periods = [
+      {
+        period: 'am',
+        weather: source[`wf${dayOffset}Am`],
+        rainPercent: toNumber(source[`rnSt${dayOffset}Am`]),
+      },
+      {
+        period: 'pm',
+        weather: source[`wf${dayOffset}Pm`],
+        rainPercent: toNumber(source[`rnSt${dayOffset}Pm`]),
+      },
+    ]
+
+    periods.forEach((item) => {
+      if (!item.weather && item.rainPercent == null) return
+
+      normalized.push({
+        dayOffset,
+        period: item.period,
+        weather: item.weather || '제공 전',
+        rainPercent: item.rainPercent ?? 0,
+      })
+    })
+
+    if (dayOffset >= 8) {
+      const weather = source[`wf${dayOffset}`]
+      const rainPercent = toNumber(source[`rnSt${dayOffset}`])
+
+      if (!weather && rainPercent == null) return
+
+      normalized.push({
+        dayOffset,
+        period: 'all',
+        weather: weather || '제공 전',
+        rainPercent: rainPercent ?? 0,
+      })
+    }
+  })
+
+  return normalized
+}
+
+function normalizeTemperatureForecast(items) {
+  const source = items[0]
+
+  if (!source) return []
+
+  return FORECAST_DAY_RANGE.map((dayOffset) => {
+    const tempMin = toNumber(source[`taMin${dayOffset}`])
+    const tempMax = toNumber(source[`taMax${dayOffset}`])
+
+    if (tempMin == null && tempMax == null) {
       return null
     }
 
     return {
-      date: addDays(baseDate, day),
-      weather: weather || '제공 전',
-      rainProbability: rainProbability ?? 0,
+      dayOffset,
+      tempMin,
+      tempMax,
     }
   }).filter(Boolean)
 }
 
-function normalizeTemperatureForecast(item, tmFc) {
-  if (!item) return []
+function normalizeSeaForecast(items) {
+  const source = items[0]
 
-  const baseDate = tmFc.slice(0, 8)
+  if (!source) return []
 
-  return FORECAST_DAY_RANGE.map((day) => {
-    const minTemp = toNumber(item[`taMin${day}`])
-    const maxTemp = toNumber(item[`taMax${day}`])
+  const normalized = []
 
-    if (minTemp == null && maxTemp == null) {
-      return null
+  FORECAST_DAY_RANGE.forEach((dayOffset) => {
+    const periods = [
+      {
+        period: 'am',
+        weather: source[`wf${dayOffset}Am`],
+        waveMin: toNumber(source[`wh${dayOffset}AAm`]) ?? toNumber(source[`wh${dayOffset}A`]),
+        waveMax: toNumber(source[`wh${dayOffset}BAm`]) ?? toNumber(source[`wh${dayOffset}B`]),
+      },
+      {
+        period: 'pm',
+        weather: source[`wf${dayOffset}Pm`],
+        waveMin: toNumber(source[`wh${dayOffset}APm`]) ?? toNumber(source[`wh${dayOffset}A`]),
+        waveMax: toNumber(source[`wh${dayOffset}BPm`]) ?? toNumber(source[`wh${dayOffset}B`]),
+      },
+    ]
+
+    periods.forEach((item) => {
+      if (!item.weather && item.waveMin == null && item.waveMax == null) return
+
+      normalized.push({
+        dayOffset,
+        period: item.period,
+        weather: item.weather || '제공 전',
+        waveMin: item.waveMin,
+        waveMax: item.waveMax,
+      })
+    })
+
+    if (dayOffset >= 8) {
+      const weather = source[`wf${dayOffset}`]
+      const waveMin = toNumber(source[`wh${dayOffset}A`])
+      const waveMax = toNumber(source[`wh${dayOffset}B`])
+
+      if (!weather && waveMin == null && waveMax == null) return
+
+      normalized.push({
+        dayOffset,
+        period: 'all',
+        weather: weather || '제공 전',
+        waveMin,
+        waveMax,
+      })
     }
+  })
 
-    return {
-      date: addDays(baseDate, day),
-      minTemp,
-      maxTemp,
-    }
-  }).filter(Boolean)
-}
-
-function buildWaveHeight(item, day) {
-  const minWaveHeight =
-    toNumber(item[`wh${day}APm`]) ??
-    toNumber(item[`wh${day}AAm`]) ??
-    toNumber(item[`wh${day}A`])
-  const maxWaveHeight =
-    toNumber(item[`wh${day}BPm`]) ??
-    toNumber(item[`wh${day}BAm`]) ??
-    toNumber(item[`wh${day}B`])
-
-  if (minWaveHeight == null && maxWaveHeight == null) {
-    return ''
-  }
-
-  if (minWaveHeight != null && maxWaveHeight != null) {
-    return `${minWaveHeight}~${maxWaveHeight}m`
-  }
-
-  const waveHeight = minWaveHeight ?? maxWaveHeight
-  return `${waveHeight}m`
-}
-
-function normalizeSeaForecast(item, tmFc) {
-  if (!item) return []
-
-  const baseDate = tmFc.slice(0, 8)
-
-  return FORECAST_DAY_RANGE.map((day) => {
-    const weather = item[`wf${day}Pm`] || item[`wf${day}Am`] || item[`wf${day}`] || ''
-    const waveHeight = buildWaveHeight(item, day)
-
-    if (!weather && !waveHeight) {
-      return null
-    }
-
-    return {
-      date: addDays(baseDate, day),
-      weather: weather || '제공 전',
-      waveHeight: waveHeight || '제공 전',
-    }
-  }).filter(Boolean)
+  return normalized
 }
 
 function resolveRequestConfig(query) {
@@ -242,12 +340,12 @@ function resolveRequestConfig(query) {
 
     return {
       type,
-      area: seaArea,
       endpoint: 'getMidSeaFcst',
       params: {
         regId: seaArea.forecastCode,
       },
       normalize: normalizeSeaForecast,
+      extraPayload: { seaArea: seaArea.id },
     }
   }
 
@@ -260,44 +358,82 @@ function resolveRequestConfig(query) {
 
   return {
     type,
-    area: region,
     endpoint: type === 'weather' ? 'getMidLandFcst' : 'getMidTa',
     params: {
       regId: type === 'weather' ? region.landForecastCode : region.temperatureCode,
     },
     normalize: type === 'weather' ? normalizeWeatherForecast : normalizeTemperatureForecast,
+    extraPayload: {},
   }
+}
+
+async function fetchForecastWithFallback(config) {
+  const primaryTmFc = getLatestTmFc()
+  const fallbackTmFc = getPreviousTmFc(primaryTmFc)
+  const candidates = [primaryTmFc, fallbackTmFc]
+  let noDataError = null
+  let lastError = null
+
+  for (const tmFc of candidates) {
+    try {
+      const result = await requestKma(config.endpoint, config.params, tmFc)
+      return {
+        ok: true,
+        type: config.type,
+        tmFc,
+        items: config.normalize(result.items),
+        ...config.extraPayload,
+      }
+    } catch (error) {
+      if (error?.details?.isInvalidKey) {
+        throw error
+      }
+
+      if (error?.details?.isNoData) {
+        noDataError = error
+        lastError = error
+        continue
+      }
+
+      lastError = error
+      continue
+    }
+  }
+
+  if (noDataError) {
+    return {
+      ok: true,
+      type: config.type,
+      tmFc: primaryTmFc,
+      items: [],
+      message: '선택한 기간에 제공되는 예보 정보가 없어요.',
+      noData: true,
+      ...config.extraPayload,
+    }
+  }
+
+  throw lastError || createApiError(502, 'Failed to fetch forecast data.')
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
     return res.status(405).json({
-      success: false,
+      ok: false,
       message: 'Method not allowed.',
     })
   }
 
   try {
     const config = resolveRequestConfig(req.query)
-    const tmFc = getLatestTmFc()
-    const item = await requestKma(config.endpoint, {
-      ...config.params,
-      tmFc,
-    })
-
-    return res.status(200).json({
-      success: true,
-      type: config.type,
-      tmFc,
-      items: config.normalize(item, tmFc),
-    })
+    const payload = await fetchForecastWithFallback(config)
+    return res.status(200).json(payload)
   } catch (error) {
     console.error('[WHENSDAY] forecast proxy failed', error)
 
     return res.status(error?.status || 500).json({
-      success: false,
-      message: 'Forecast proxy failed.',
+      ok: false,
+      message: '참고 정보를 불러오지 못했어요.',
     })
   }
 }

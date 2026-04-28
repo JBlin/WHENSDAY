@@ -103,6 +103,7 @@
             :items="visibleForecastItems"
             :loading="forecastLoading"
             :error="forecastError"
+            :empty-message="forecastEmptyMessage"
           />
         </div>
       </div>
@@ -160,6 +161,7 @@ const selectedSeaArea = ref(DEFAULT_SEA_AREA)
 const forecastItems = ref([])
 const forecastLoading = ref(false)
 const forecastError = ref(false)
+const forecastEmptyMessage = ref('')
 
 const isHost = computed(() => hasStoredHostAccess(route.params.id, store.meeting?.host_token || ''))
 const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
@@ -206,15 +208,18 @@ watch(
       forecastItems.value = []
       forecastLoading.value = false
       forecastError.value = false
+      forecastEmptyMessage.value = ''
       return
     }
 
     const cacheKey = type === 'sea' ? `${type}:${seaArea}` : `${type}:seoul`
 
     if (forecastCache.has(cacheKey)) {
-      forecastItems.value = forecastCache.get(cacheKey)
+      const cached = forecastCache.get(cacheKey)
+      forecastItems.value = cached.items
       forecastLoading.value = false
       forecastError.value = false
+      forecastEmptyMessage.value = cached.message
       return
     }
 
@@ -230,8 +235,10 @@ watch(
       if (requestId !== forecastRequestId) return
 
       const items = Array.isArray(payload?.items) ? payload.items : []
-      forecastCache.set(cacheKey, items)
+      const message = payload?.message || ''
+      forecastCache.set(cacheKey, { items, message })
       forecastItems.value = items
+      forecastEmptyMessage.value = message
     } catch (error) {
       console.error('[WHENSDAY] failed to fetch forecast info', error)
 
@@ -239,6 +246,7 @@ watch(
 
       forecastItems.value = []
       forecastError.value = true
+      forecastEmptyMessage.value = ''
     } finally {
       if (requestId === forecastRequestId) {
         forecastLoading.value = false

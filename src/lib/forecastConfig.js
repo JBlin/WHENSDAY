@@ -32,7 +32,7 @@ export const SEA_AREA_MAP = {
   east: {
     id: 'east',
     label: '동해',
-    forecastCode: '12C20000',
+    forecastCode: '12C10000',
     zoneLabel: '동해남부',
   },
 }

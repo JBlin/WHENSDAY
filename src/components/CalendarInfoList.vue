@@ -23,7 +23,7 @@
     </p>
 
     <p v-else-if="!items.length" class="mt-3 text-sm text-gray-500">
-      {{ emptyMessage }}
+      {{ resolvedEmptyMessage }}
     </p>
 
     <ul v-else class="mt-3 flex flex-col gap-2">
@@ -52,11 +52,12 @@ const props = defineProps({
   items: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   error: { type: Boolean, default: false },
+  emptyMessage: { type: String, default: '' },
 })
 
 const summaryLabel = computed(() =>
   getForecastSelectionSummary(props.selectedType, props.seaArea)
 )
 
-const emptyMessage = computed(() => FORECAST_EMPTY_MESSAGE)
+const resolvedEmptyMessage = computed(() => props.emptyMessage || FORECAST_EMPTY_MESSAGE)
 </script>
