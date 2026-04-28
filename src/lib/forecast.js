@@ -185,13 +185,24 @@ export function formatForecastDate(dateStr) {
 
 export function formatForecastItem(item, type) {
   const dateLabel = formatForecastDate(item?.date)
+  const summary = formatForecastSummary(item, type)
+
+  return summary ? `${dateLabel} · ${summary}` : dateLabel
+}
+
+export function formatForecastSummary(item, type) {
+  if (!item) return ''
 
   if (type === 'weather') {
-    return `${dateLabel} · ${item.weather} · 강수확률 ${item.rainPercent}%`
+    const weather = item.weather || '예보 제공 전'
+    const rainPercent = Number.isFinite(item.rainPercent) ? `${item.rainPercent}%` : '제공 전'
+    return `${weather} · 강수확률 ${rainPercent}`
   }
 
   if (type === 'temperature') {
-    return `${dateLabel} · 최저 ${item.tempMin}° / 최고 ${item.tempMax}°`
+    const min = Number.isFinite(item.tempMin) ? `${item.tempMin}°` : '제공 전'
+    const max = Number.isFinite(item.tempMax) ? `${item.tempMax}°` : '제공 전'
+    return `${min} / ${max}`
   }
 
   if (type === 'sea') {
@@ -204,10 +215,10 @@ export function formatForecastItem(item, type) {
             ? `${item.waveMax}m`
             : '제공 전'
 
-    return `${dateLabel} · ${item.weather} · 파고 ${waveLabel}`
+    return `${item.weather} · 파고 ${waveLabel}`
   }
 
-  return dateLabel
+  return ''
 }
 
 export function getForecastSelectionSummary(type, seaArea) {

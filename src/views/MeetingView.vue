@@ -82,9 +82,11 @@
         </div>
 
         <div class="rounded-card bg-white p-4 shadow-sm">
-          <div class="mb-4 flex items-center justify-between">
+          <div class="mb-4 flex items-center justify-between gap-3">
             <h3 class="text-sm font-semibold text-gray-700">가능한 날짜 선택</h3>
-            <span class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-400">{{ selectedDates.length }}일 선택</span>
+            <span class="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">
+              {{ selectedDates.length }}일 선택
+            </span>
           </div>
           <CalendarInfoToggle
             v-model="selectedInfoType"
@@ -101,6 +103,7 @@
             :selected-type="selectedInfoType"
             :sea-area="selectedSeaArea"
             :items="visibleForecastItems"
+            :selected-dates="selectedDates"
             :loading="forecastLoading"
             :error="forecastError"
             :empty-message="forecastEmptyMessage"

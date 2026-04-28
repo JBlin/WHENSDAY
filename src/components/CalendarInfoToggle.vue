@@ -1,14 +1,16 @@
 <template>
   <div class="mt-4">
+    <p class="mb-2 text-sm font-semibold text-gray-700">날짜 고를 때 참고해 보세요</p>
+
     <div class="flex gap-2 overflow-x-auto pb-1">
       <button
         v-for="option in FORECAST_TYPE_OPTIONS"
         :key="option.id"
         type="button"
-        class="shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+        class="shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all"
         :class="
           modelValue === option.id
-            ? 'border-primary bg-primary text-white'
+            ? 'border-primary bg-primary text-white shadow-sm shadow-primary/20'
             : 'border-gray-200 bg-white text-gray-500'
         "
         @click="toggleType(option.id)"
@@ -24,7 +26,7 @@
           v-for="area in seaAreaOptions"
           :key="area.id"
           type="button"
-          class="shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors"
+          class="shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition-all"
           :class="
             seaArea === area.id
               ? 'border-primary bg-primary-light text-primary'
