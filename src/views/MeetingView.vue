@@ -86,10 +86,23 @@
             <h3 class="text-sm font-semibold text-gray-700">가능한 날짜 선택</h3>
             <span class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-400">{{ selectedDates.length }}일 선택</span>
           </div>
+          <CalendarInfoToggle
+            v-model="selectedInfoType"
+            :sea-area="selectedSeaArea"
+            @update:sea-area="selectedSeaArea = $event"
+          />
           <CalendarPicker
+            class="mt-4"
             v-model="selectedDates"
             :date-from="store.meeting.date_from"
             :date-to="store.meeting.date_to"
+          />
+          <CalendarInfoList
+            :selected-type="selectedInfoType"
+            :sea-area="selectedSeaArea"
+            :items="visibleForecastItems"
+            :loading="forecastLoading"
+            :error="forecastError"
           />
         </div>
       </div>
@@ -116,10 +129,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import CalendarPicker from '../components/CalendarPicker.vue'
+import CalendarInfoList from '../components/CalendarInfoList.vue'
+import CalendarInfoToggle from '../components/CalendarInfoToggle.vue'
 import ToastMessage from '../components/ToastMessage.vue'
+import { DEFAULT_SEA_AREA } from '../lib/forecastConfig.js'
+import { fetchForecast, filterForecastItemsByRange } from '../lib/forecast.js'
 import { hasStoredHostAccess, storeHostResponseName } from '../lib/hostAccess.js'
 import { formatDisplayDate } from '../lib/meetingUtils.js'
 import { hasVotedForMeeting, markMeetingAsVoted } from '../lib/voteAccess.js'
@@ -138,13 +155,23 @@ const toastVisible = ref(false)
 const toastMsg = ref('')
 const toastType = ref('success')
 const hasVoted = ref(hasVotedForMeeting(route.params.id))
+const selectedInfoType = ref('')
+const selectedSeaArea = ref(DEFAULT_SEA_AREA)
+const forecastItems = ref([])
+const forecastLoading = ref(false)
+const forecastError = ref(false)
 
 const isHost = computed(() => hasStoredHostAccess(route.params.id, store.meeting?.host_token || ''))
 const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
 const canViewResult = computed(() => submitted.value || hasVoted.value || isConfirmed.value || isHost.value)
+const visibleForecastItems = computed(() =>
+  filterForecastItemsByRange(forecastItems.value, store.meeting?.date_from, store.meeting?.date_to)
+)
 
 let realtimeChannel = null
+let forecastRequestId = 0
+const forecastCache = new Map()
 
 onMounted(async () => {
   if (route.query.needVote === '1') {
@@ -164,6 +191,62 @@ onMounted(async () => {
 onUnmounted(() => {
   realtimeChannel?.unsubscribe()
 })
+
+watch(
+  [
+    selectedInfoType,
+    selectedSeaArea,
+    () => store.meeting?.date_from,
+    () => store.meeting?.date_to,
+  ],
+  async ([type, seaArea, dateFrom, dateTo]) => {
+    const requestId = ++forecastRequestId
+
+    if (!type || !dateFrom || !dateTo) {
+      forecastItems.value = []
+      forecastLoading.value = false
+      forecastError.value = false
+      return
+    }
+
+    const cacheKey = type === 'sea' ? `${type}:${seaArea}` : `${type}:seoul`
+
+    if (forecastCache.has(cacheKey)) {
+      forecastItems.value = forecastCache.get(cacheKey)
+      forecastLoading.value = false
+      forecastError.value = false
+      return
+    }
+
+    forecastLoading.value = true
+    forecastError.value = false
+
+    try {
+      const payload = await fetchForecast({
+        type,
+        seaArea,
+      })
+
+      if (requestId !== forecastRequestId) return
+
+      const items = Array.isArray(payload?.items) ? payload.items : []
+      forecastCache.set(cacheKey, items)
+      forecastItems.value = items
+    } catch (error) {
+      console.error('[WHENSDAY] failed to fetch forecast info', error)
+
+      if (requestId !== forecastRequestId) return
+
+      forecastItems.value = []
+      forecastError.value = true
+    } finally {
+      if (requestId === forecastRequestId) {
+        forecastLoading.value = false
+      }
+    }
+  },
+  { immediate: true }
+)
 
 function subscribeRealtime() {
   realtimeChannel = supabase

@@ -17,9 +17,11 @@
 ```env
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key-here
+KMA_SERVICE_KEY=your-kma-service-key-here
 ```
 
 현재 코드는 `VITE_SUPABASE_PUBLISHABLE_KEY`를 우선 사용하고, 없으면 `VITE_SUPABASE_ANON_KEY`도 fallback으로 읽습니다.
+기상청 중기예보 키는 브라우저에 노출하지 않도록 `KMA_SERVICE_KEY`를 Vercel 서버 환경 변수로만 사용합니다.
 
 ## Supabase SQL
 
@@ -66,6 +68,12 @@ create policy "Anyone can update responses" on responses for update using (true)
 
 alter publication supabase_realtime add table responses;
 ```
+
+## 중기예보 참고 정보
+
+- `/meeting/:id`의 참고 정보 뱃지는 `/api/forecast` Vercel Function을 통해 기상청 중기예보 API를 프록시 호출합니다.
+- MVP 기준 기본 육상 지역은 `서울`, 바다 해역은 `서해/남해/동해`만 하드코딩되어 있습니다.
+- 중기예보는 발표 시각 기준 `4~10일 후` 날짜 중심으로 제공되므로, 가까운 날짜 범위에서는 정보가 없을 수 있습니다.
 
 ## 약속 만들기 실패 시
 
