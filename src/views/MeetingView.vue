@@ -1,11 +1,11 @@
 <template>
   <div class="min-h-screen bg-white flex flex-col">
-    <header class="bg-white px-5 pt-5 pb-4 shadow-sm sticky top-0 z-10">
+    <header class="sticky top-0 z-10 bg-white px-5 pb-4 pt-5 shadow-sm">
       <div class="flex items-center gap-3">
-        <RouterLink to="/" class="font-brand text-lg font-black tracking-widest text-primary uppercase shrink-0">W</RouterLink>
-        <div class="flex-1 min-w-0">
-          <p v-if="store.meeting" class="text-sm font-bold text-gray-900 truncate">{{ store.meeting.title }}</p>
-          <p class="text-xs text-gray-400 mt-0.5">
+        <RouterLink to="/" class="font-brand shrink-0 text-lg font-black uppercase tracking-widest text-primary">W</RouterLink>
+        <div class="min-w-0 flex-1">
+          <p v-if="store.meeting" class="truncate text-sm font-bold text-gray-900">{{ store.meeting.title }}</p>
+          <p class="mt-0.5 text-xs text-gray-400">
             <span v-if="store.loading">불러오는 중...</span>
             <span v-else-if="store.responses.length">현재 {{ store.responses.length }}명 참여 중</span>
             <span v-else>아직 아무도 참여하지 않았어요.</span>
@@ -14,69 +14,86 @@
         <RouterLink
           v-if="store.meeting && canViewResult"
           :to="`/meeting/${store.meeting.id}/result`"
-          class="text-xs text-primary font-semibold shrink-0 py-1.5 px-3 bg-primary-light rounded-full"
+          class="shrink-0 rounded-full bg-primary-light px-3 py-1.5 text-xs font-semibold text-primary"
         >
           결과 보기
         </RouterLink>
         <span
           v-else-if="store.meeting"
-          class="text-[11px] text-gray-400 font-semibold shrink-0 py-1.5 px-3 bg-gray-100 rounded-full"
+          class="shrink-0 rounded-full bg-gray-100 px-3 py-1.5 text-[11px] font-semibold text-gray-400"
         >
           투표 후 결과 공개
         </span>
       </div>
     </header>
 
-    <div v-if="store.loading" class="flex-1 flex items-center justify-center">
+    <div v-if="store.loading" class="flex flex-1 items-center justify-center">
       <div class="text-center">
-        <div class="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+        <div class="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         <p class="text-sm text-gray-400">불러오는 중...</p>
       </div>
     </div>
 
-    <div v-else-if="store.error" class="flex-1 flex items-center justify-center px-5">
+    <div v-else-if="store.error" class="flex flex-1 items-center justify-center px-5">
       <div class="text-center">
-        <p class="text-xl font-bold text-gray-800 mb-2">약속을 찾을 수 없어요.</p>
-        <p class="text-sm text-gray-400 mt-1">링크가 올바른지 다시 확인해 주세요.</p>
-        <RouterLink to="/" class="mt-5 inline-block text-primary font-semibold text-sm">처음으로 가기</RouterLink>
+        <p class="mb-2 text-xl font-bold text-gray-800">약속을 찾을 수 없어요.</p>
+        <p class="mt-1 text-sm text-gray-400">링크가 올바른지 다시 확인해 주세요.</p>
+        <RouterLink to="/" class="mt-5 inline-block text-sm font-semibold text-primary">처음으로 가기</RouterLink>
       </div>
     </div>
 
-    <div v-else-if="store.meeting" class="flex-1 flex flex-col pb-28">
-      <div v-if="submitted" class="bg-green-50 border-b border-green-100 px-5 py-3">
-        <p class="text-sm text-green-700 font-medium">제출 완료! 같은 이름으로 다시 제출하면 내용이 업데이트돼요.</p>
+    <div v-else-if="store.meeting" class="flex flex-1 flex-col" :class="isConfirmed ? 'pb-8' : 'pb-28'">
+      <div v-if="submitted" class="border-b border-green-100 bg-green-50 px-5 py-3">
+        <p class="text-sm font-medium text-green-700">제출이 완료됐어요. 결과 화면에서 바로 확인해 보세요.</p>
       </div>
 
-      <div class="px-5 py-5 flex flex-col gap-5 flex-1">
-        <div class="bg-white rounded-card p-4 shadow-sm">
-          <label class="text-sm font-semibold text-gray-700 mb-2 block">이름</label>
+      <div v-if="isConfirmed" class="flex-1 px-5 py-5">
+        <div class="rounded-card border border-primary/15 bg-primary/[0.04] p-4">
+          <p class="text-sm font-semibold text-primary">약속 날짜가 이미 확정됐어요</p>
+          <p class="mt-2 text-xl font-bold text-gray-900">{{ confirmedDateLabel }}</p>
+          <p class="mt-2 text-sm text-gray-500">확정된 약속이라 더 이상 날짜를 제출할 수 없어요. 결과 화면에서 자세한 내용을 확인해 주세요.</p>
+          <RouterLink
+            :to="`/meeting/${store.meeting.id}/result`"
+            class="mt-4 inline-flex h-11 items-center justify-center rounded-btn bg-primary px-4 text-sm font-bold text-white transition-all duration-150 active:scale-95"
+          >
+            결과 화면 보기
+          </RouterLink>
+        </div>
+      </div>
+
+      <div v-else class="flex flex-1 flex-col gap-5 px-5 py-5">
+        <div class="rounded-card bg-white p-4 shadow-sm">
+          <label class="mb-2 block text-sm font-semibold text-gray-700">이름</label>
           <input
             v-model="name"
             type="text"
             maxlength="20"
             placeholder="이름을 입력해 주세요"
-            class="w-full h-12 px-4 border border-gray-200 rounded-btn text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition bg-gray-50"
+            class="h-12 w-full rounded-btn border border-gray-200 bg-gray-50 px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
 
-        <div class="bg-white rounded-card p-4 shadow-sm">
-          <div class="flex items-center justify-between mb-4">
+        <div class="rounded-card bg-white p-4 shadow-sm">
+          <div class="mb-4 flex items-center justify-between">
             <h3 class="text-sm font-semibold text-gray-700">가능한 날짜 선택</h3>
-            <span class="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">{{ selectedDates.length }}일 선택</span>
+            <span class="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-400">{{ selectedDates.length }}일 선택</span>
           </div>
           <CalendarPicker
+            v-model="selectedDates"
             :date-from="store.meeting.date_from"
             :date-to="store.meeting.date_to"
-            v-model="selectedDates"
           />
         </div>
       </div>
 
-      <div class="fixed bottom-0 left-0 right-0 z-20 max-w-[430px] mx-auto bg-white border-t border-gray-100 px-5 pt-5 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
+      <div
+        v-if="!isConfirmed"
+        class="fixed bottom-0 left-0 right-0 z-20 mx-auto max-w-[430px] border-t border-gray-100 bg-white px-5 pt-5 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] shadow-[0_-8px_24px_rgba(15,23,42,0.04)]"
+      >
         <button
-          @click="submit"
           :disabled="!name.trim() || !selectedDates.length || submitting"
-          class="w-full h-12 bg-primary text-white font-bold rounded-btn text-base shadow-sm active:scale-95 transition-all duration-150 disabled:bg-gray-200 disabled:text-gray-400 disabled:opacity-100 disabled:cursor-not-allowed"
+          class="h-12 w-full rounded-btn bg-primary text-base font-bold text-white shadow-sm transition-all duration-150 active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-200 disabled:text-gray-400 disabled:opacity-100"
+          @click="submit"
         >
           <span v-if="submitting">제출 중...</span>
           <span v-else-if="!name.trim()">이름을 먼저 입력해 주세요</span>
@@ -95,6 +112,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import CalendarPicker from '../components/CalendarPicker.vue'
 import ToastMessage from '../components/ToastMessage.vue'
+import { formatDisplayDate } from '../lib/meetingUtils.js'
 import { hasVotedForMeeting, markMeetingAsVoted } from '../lib/voteAccess.js'
 import { supabase } from '../lib/supabase.js'
 import { useMeetingStore } from '../stores/meeting.js'
@@ -112,13 +130,15 @@ const toastMsg = ref('')
 const toastType = ref('success')
 const hasVoted = ref(hasVotedForMeeting(route.params.id))
 
-const canViewResult = computed(() => submitted.value || hasVoted.value)
+const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
+const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
+const canViewResult = computed(() => submitted.value || hasVoted.value || isConfirmed.value)
 
 let realtimeChannel = null
 
 onMounted(async () => {
   if (route.query.needVote === '1') {
-    showToast('결과는 투표를 완료한 뒤에 볼 수 있어요.', 'info')
+    showToast('결과는 투표를 마친 뒤에 볼 수 있어요.', 'info')
     router.replace(`/meeting/${route.params.id}`)
   }
 
@@ -145,6 +165,13 @@ function subscribeRealtime() {
         store.fetchResponses(route.params.id)
       }
     )
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'meetings', filter: `id=eq.${route.params.id}` },
+      () => {
+        store.fetchMeeting(route.params.id)
+      }
+    )
     .subscribe()
 }
 
@@ -167,13 +194,14 @@ async function submit() {
     submitted.value = true
     hasVoted.value = true
     markMeetingAsVoted(route.params.id)
-    showToast('제출 완료! 결과 화면으로 이동할게요.')
+    showToast('제출이 완료됐어요. 결과 화면으로 이동할게요.')
     await router.push({
       path: `/meeting/${route.params.id}/result`,
       query: { submitted: '1' },
     })
   } catch (error) {
-    showToast(error?.message || '제출에 실패했어요. 다시 시도해 주세요.', 'error')
+    console.error('[WHENSDAY] failed to submit response', error)
+    showToast(error?.message || '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.', 'error')
   } finally {
     submitting.value = false
   }

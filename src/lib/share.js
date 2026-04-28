@@ -1,14 +1,32 @@
 export function buildMeetingUrl(meetingId) {
   if (!meetingId || typeof window === 'undefined') {
-    throw new Error('공유할 링크를 만들 수 없어요.')
+    throw new Error('공유 링크를 만들 수 없어요.')
   }
 
   return new URL(`/meeting/${meetingId}`, window.location.origin).toString()
 }
 
+export function buildHostUrl(meetingId, hostToken) {
+  if (!meetingId || !hostToken || typeof window === 'undefined') {
+    throw new Error('방장 링크를 만들 수 없어요.')
+  }
+
+  const url = new URL(`/host/${meetingId}`, window.location.origin)
+  url.searchParams.set('token', hostToken)
+  return url.toString()
+}
+
+export function buildKakaoShareText({ title, participantUrl }) {
+  return [
+    `[WHENSDAY] ${title}`,
+    '가능한 날짜를 눌러서 참여해 주세요.',
+    participantUrl,
+  ].join('\n')
+}
+
 export async function copyText(text) {
   if (!text) {
-    throw new Error('복사할 링크가 없어요.')
+    throw new Error('복사할 내용이 없어요.')
   }
 
   if (
@@ -22,7 +40,7 @@ export async function copyText(text) {
   }
 
   if (typeof document === 'undefined') {
-    throw new Error('이 브라우저에서는 자동 복사를 지원하지 않아요.')
+    throw new Error('지금은 자동 복사를 지원하지 않아요.')
   }
 
   const textArea = document.createElement('textarea')
@@ -43,6 +61,6 @@ export async function copyText(text) {
   document.body.removeChild(textArea)
 
   if (!copied) {
-    throw new Error('링크 복사에 실패했어요. 다시 시도해 주세요.')
+    throw new Error('복사에 실패했어요. 다시 시도해 주세요.')
   }
 }

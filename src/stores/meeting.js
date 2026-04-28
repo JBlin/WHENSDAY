@@ -6,40 +6,40 @@ import {
   supabase,
 } from '../lib/supabase.js'
 
+const GENERIC_REQUEST_ERROR_MESSAGE = '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'
+const NOT_FOUND_ERROR_MESSAGE = '약속 정보를 찾을 수 없어요.'
+const CONFIRMED_MEETING_ERROR_MESSAGE = '이미 확정된 약속이라 더 이상 제출할 수 없어요.'
+
+function createUserFacingError(message = GENERIC_REQUEST_ERROR_MESSAGE) {
+  return new Error(message)
+}
+
 export const useMeetingStore = defineStore('meeting', () => {
   const meeting = ref(null)
   const responses = ref([])
   const loading = ref(false)
   const error = ref(null)
 
-  function buildSupabaseError(err, table, action) {
+  function logSupabaseError(context, details) {
+    console.error(`[WHENSDAY] ${context}`, details)
+  }
+
+  function buildSupabaseError(err, options = {}) {
+    const { notFoundMessage = NOT_FOUND_ERROR_MESSAGE } = options
+
     if (!err) {
-      return new Error('알 수 없는 오류가 발생했어요.')
+      return createUserFacingError()
     }
 
     if (err.message === SUPABASE_CONFIG_ERROR_MESSAGE) {
-      return err
+      return createUserFacingError()
     }
 
-    if (err.code === '42501') {
-      if (table === 'responses') {
-        return new Error(
-          '응답 제출 권한이 아직 설정되지 않았어요.\nSupabase SQL Editor에서 responses 테이블의 select / insert / update 정책을 추가한 뒤 다시 시도해 주세요.'
-        )
-      }
-
-      return new Error(
-        `Supabase 권한 설정이 아직 완료되지 않았어요.\n${table} 테이블의 ${action} 정책을 확인한 뒤 다시 시도해 주세요.`
-      )
+    if (err.code === 'PGRST116') {
+      return createUserFacingError(notFoundMessage)
     }
 
-    if (err instanceof TypeError && /Failed to fetch/i.test(err.message || '')) {
-      return new Error(
-        'Supabase에 연결하지 못했어요.\nVercel 환경 변수 VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY가 올바른지 확인해 주세요.'
-      )
-    }
-
-    return new Error(err.message || 'Supabase 요청에 실패했어요.')
+    return createUserFacingError()
   }
 
   async function fetchMeeting(id) {
@@ -55,16 +55,22 @@ export const useMeetingStore = defineStore('meeting', () => {
         .eq('id', id)
         .single()
 
-      if (err) throw buildSupabaseError(err, 'meetings', 'select')
+      if (err) throw err
+
       meeting.value = data
-    } catch (e) {
-      error.value = buildSupabaseError(e, 'meetings', 'select').message
+      return data
+    } catch (err) {
+      logSupabaseError('failed to fetch meeting', err)
+      error.value = buildSupabaseError(err).message
+      return null
     } finally {
       loading.value = false
     }
   }
 
   async function fetchResponses(meetingId) {
+    error.value = null
+
     try {
       assertSupabaseConfigured()
 
@@ -74,14 +80,15 @@ export const useMeetingStore = defineStore('meeting', () => {
         .eq('meeting_id', meetingId)
         .order('created_at')
 
-      if (err) {
-        error.value = buildSupabaseError(err, 'responses', 'select').message
-        return
-      }
+      if (err) throw err
 
-      responses.value = data
-    } catch (e) {
-      error.value = buildSupabaseError(e, 'responses', 'select').message
+      responses.value = data || []
+      return responses.value
+    } catch (err) {
+      logSupabaseError('failed to fetch responses', err)
+      error.value = buildSupabaseError(err).message
+      responses.value = []
+      return []
     }
   }
 
@@ -93,22 +100,29 @@ export const useMeetingStore = defineStore('meeting', () => {
       title,
       date_from: dateFrom,
       date_to: dateTo,
+      host_token: crypto.randomUUID(),
+      status: 'open',
+      confirmed_date: null,
     }
 
     try {
-      const { error: err } = await supabase
-        .from('meetings')
-        .insert(newMeeting)
+      const { error: err } = await supabase.from('meetings').insert(newMeeting)
 
-      if (err) throw buildSupabaseError(err, 'meetings', 'insert')
+      if (err) throw err
+
       return newMeeting
-    } catch (e) {
-      throw buildSupabaseError(e, 'meetings', 'insert')
+    } catch (err) {
+      logSupabaseError('failed to create meeting', err)
+      throw buildSupabaseError(err)
     }
   }
 
   async function submitResponse(meetingId, name, availableDates) {
     assertSupabaseConfigured()
+
+    if (meeting.value?.status === 'confirmed') {
+      throw createUserFacingError(CONFIRMED_MEETING_ERROR_MESSAGE)
+    }
 
     try {
       const { error: err } = await supabase
@@ -118,9 +132,34 @@ export const useMeetingStore = defineStore('meeting', () => {
           { onConflict: 'meeting_id,name' }
         )
 
-      if (err) throw buildSupabaseError(err, 'responses', 'upsert')
-    } catch (e) {
-      throw buildSupabaseError(e, 'responses', 'upsert')
+      if (err) throw err
+    } catch (err) {
+      logSupabaseError('failed to submit response', err)
+      throw buildSupabaseError(err)
+    }
+  }
+
+  async function confirmMeeting(meetingId, confirmedDate) {
+    assertSupabaseConfigured()
+
+    try {
+      const { data, error: err } = await supabase
+        .from('meetings')
+        .update({
+          status: 'confirmed',
+          confirmed_date: confirmedDate,
+        })
+        .eq('id', meetingId)
+        .select('*')
+        .single()
+
+      if (err) throw err
+
+      meeting.value = data
+      return data
+    } catch (err) {
+      logSupabaseError('failed to confirm meeting', err)
+      throw buildSupabaseError(err)
     }
   }
 
@@ -139,6 +178,7 @@ export const useMeetingStore = defineStore('meeting', () => {
     fetchResponses,
     createMeeting,
     submitResponse,
+    confirmMeeting,
     reset,
   }
 })

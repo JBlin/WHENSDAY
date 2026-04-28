@@ -1,66 +1,68 @@
 <template>
   <div class="min-h-screen bg-gradient-to-b from-primary-light to-white flex flex-col">
-    <div class="flex flex-col items-center pt-20 pb-10 px-6">
+    <div class="flex flex-col items-center px-6 pb-10 pt-20">
       <h1 class="font-brand text-4xl font-black tracking-widest text-primary uppercase">WHENSDAY</h1>
-      <p class="mt-2 text-gray-500 text-sm font-medium">우리 진짜 언제 볼까?</p>
+      <p class="mt-2 text-sm font-medium text-gray-500">우리 진짜 언제 볼까?</p>
     </div>
 
-    <div class="flex-1 bg-white rounded-t-3xl px-5 pt-8 pb-8 shadow-sm">
-      <h2 class="text-lg font-bold text-gray-900 mb-6">약속 만들기</h2>
+    <div class="flex-1 rounded-t-3xl bg-white px-5 pb-8 pt-8 shadow-sm">
+      <h2 class="mb-6 text-lg font-bold text-gray-900">약속 만들기</h2>
 
-      <form @submit.prevent="create" class="flex flex-col gap-5">
+      <form class="flex flex-col gap-5" @submit.prevent="create">
         <div>
-          <label class="text-sm font-semibold text-gray-700 mb-1.5 block">약속 제목</label>
+          <label class="mb-1.5 block text-sm font-semibold text-gray-700">약속 제목</label>
           <input
             v-model="title"
             type="text"
             maxlength="50"
-            placeholder="주말 강남 약속 어때?"
-            class="w-full h-12 px-4 border border-gray-200 rounded-btn text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition bg-gray-50"
+            placeholder="예: 강남 저녁 약속"
+            class="h-12 w-full rounded-btn border border-gray-200 bg-gray-50 px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           />
         </div>
 
         <div>
-          <label class="text-sm font-semibold text-gray-700 mb-1.5 block">날짜 범위</label>
+          <label class="mb-1.5 block text-sm font-semibold text-gray-700">날짜 범위</label>
           <button
             type="button"
-            class="w-full min-h-12 px-4 py-3 border border-gray-200 rounded-btn text-left outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition bg-gray-50 flex items-center gap-3"
+            class="flex w-full items-center gap-3 rounded-btn border border-gray-200 bg-gray-50 px-4 py-3 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
             @click="rangePickerVisible = true"
           >
-            <div class="flex-1 min-w-0">
+            <div class="min-w-0 flex-1">
               <p class="text-sm font-semibold" :class="hasDateRange ? 'text-gray-800' : 'text-gray-400'">
                 {{ dateRangeLabel }}
               </p>
-              <p class="text-xs text-gray-400 mt-0.5">{{ dateRangeHint }}</p>
+              <p class="mt-0.5 text-xs text-gray-400">{{ dateRangeHint }}</p>
             </div>
-            <span class="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-primary-light text-primary">선택</span>
+            <span class="shrink-0 rounded-full bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary">
+              선택
+            </span>
           </button>
-          <p class="text-xs text-gray-400 mt-1.5">최대 60일 범위까지 설정할 수 있어요.</p>
+          <p class="mt-1.5 text-xs text-gray-400">최대 60일 범위까지 설정할 수 있어요.</p>
         </div>
 
-        <p v-if="errorMsg" class="text-sm text-red-500 font-medium whitespace-pre-line">{{ errorMsg }}</p>
+        <p v-if="errorMsg" class="whitespace-pre-line text-sm font-medium text-red-500">{{ errorMsg }}</p>
 
         <button
           type="submit"
           :disabled="submitting"
-          class="w-full h-12 bg-primary text-white font-bold rounded-btn text-base shadow-sm active:scale-95 transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+          class="mt-2 h-12 w-full rounded-btn bg-primary text-base font-bold text-white shadow-sm transition-all duration-150 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span v-if="submitting">만드는 중...</span>
           <span v-else>약속 만들기</span>
         </button>
       </form>
 
-      <div class="mt-10 pt-8 border-t border-gray-100">
-        <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">How It Works</h3>
+      <div class="mt-10 border-t border-gray-100 pt-8">
+        <h3 class="mb-4 text-xs font-semibold uppercase tracking-wider text-gray-400">How It Works</h3>
         <div class="flex flex-col gap-3">
           <div v-for="step in steps" :key="step.icon" class="flex items-start gap-3">
-            <span class="inline-flex w-6 h-6 shrink-0 items-center justify-center text-xl font-semibold leading-none text-center">
+            <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center text-xl font-semibold leading-none text-center">
               {{ step.icon }}
             </span>
             <div>
               <p class="text-sm font-semibold text-gray-800">{{ step.title }}</p>
-              <p class="text-xs text-gray-500 mt-0.5">{{ step.desc }}</p>
+              <p class="mt-0.5 text-xs text-gray-500">{{ step.desc }}</p>
             </div>
           </div>
         </div>
@@ -69,43 +71,80 @@
   </div>
 
   <Transition name="share-sheet">
-    <div v-if="shareVisible" class="fixed inset-0 z-50 flex flex-col justify-end" @click.self="goToMeeting">
-      <div class="absolute inset-0 bg-black/40" @click="goToMeeting" />
+    <div v-if="shareVisible" class="fixed inset-0 z-50 flex flex-col justify-end">
+      <div class="absolute inset-0 bg-black/40" @click="closeShareSheet" />
 
-      <div class="share-panel relative bg-white rounded-t-2xl px-5 pt-4 pb-8 safe-bottom">
-        <div class="flex justify-center mb-4">
-          <div class="w-10 h-1 bg-gray-200 rounded-full" />
+      <div class="share-panel relative rounded-t-2xl bg-white px-5 pb-8 pt-4 safe-bottom">
+        <div class="mb-4 flex justify-center">
+          <div class="h-1 w-10 rounded-full bg-gray-200" />
         </div>
 
-        <div class="flex items-center gap-2 mb-1">
-          <span class="font-brand text-base font-black tracking-wide text-primary uppercase">WHENSDAY</span>
-          <h3 class="text-base font-bold text-gray-900">약속이 만들어졌어요</h3>
+        <div class="mb-5">
+          <div class="mb-1 flex items-center gap-2">
+            <span class="font-brand text-base font-black uppercase tracking-wide text-primary">WHENSDAY</span>
+            <h3 class="text-base font-bold text-gray-900">약속이 만들어졌어요</h3>
+          </div>
+          <p class="text-sm text-gray-500">참여자용 링크와 방장용 링크를 각각 복사해 두세요.</p>
         </div>
-        <p class="text-sm text-gray-500 mb-5">링크를 친구들에게 공유해보세요.</p>
 
-        <div class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-btn px-3 py-3 mb-4">
-          <span class="flex-1 text-xs text-gray-600 truncate font-mono">{{ shareUrl }}</span>
-          <button
-            @click="copyLink"
-            class="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full transition-all duration-150"
-            :class="copied ? 'bg-green-100 text-green-700' : 'bg-primary-light text-primary'"
-          >
-            {{ copied ? '복사됨' : '복사' }}
-          </button>
+        <div class="mb-3 rounded-card border border-gray-200 bg-gray-50 p-3">
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-gray-900">참여자용 링크</p>
+              <p class="text-xs text-gray-400">친구들에게 보내는 링크예요.</p>
+            </div>
+            <button
+              type="button"
+              class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150"
+              :class="copiedTarget === 'participant' ? 'bg-green-100 text-green-700' : 'bg-primary-light text-primary'"
+              @click="copyValue('participant', participantUrl, '참여자 링크를 복사했어요.')"
+            >
+              {{ copiedTarget === 'participant' ? '복사됨' : '복사' }}
+            </button>
+          </div>
+          <p class="truncate font-mono text-xs text-gray-600">{{ participantUrl }}</p>
         </div>
+
+        <div class="mb-3 rounded-card border border-amber-200 bg-amber-50 p-3">
+          <div class="mb-2 flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-gray-900">방장용 링크</p>
+              <p class="text-xs text-amber-700">약속 확정과 관리에 필요해요. 꼭 따로 저장해 주세요.</p>
+            </div>
+            <button
+              type="button"
+              class="shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150"
+              :class="copiedTarget === 'host' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'"
+              @click="copyValue('host', hostUrl, '방장 링크를 복사했어요.')"
+            >
+              {{ copiedTarget === 'host' ? '복사됨' : '복사' }}
+            </button>
+          </div>
+          <p class="truncate font-mono text-xs text-gray-600">{{ hostUrl }}</p>
+        </div>
+
+        <button
+          type="button"
+          class="mb-5 flex h-12 w-full items-center justify-center gap-2 rounded-btn border border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-150 active:scale-95"
+          @click="copyValue('kakao', kakaoShareText, '카카오톡 공유 문구를 복사했어요.')"
+        >
+          <span>{{ copiedTarget === 'kakao' ? '복사 완료!' : '카카오톡 공유 문구 복사' }}</span>
+        </button>
 
         <div class="flex flex-col gap-3">
           <button
-            @click="copyLink"
-            class="w-full h-12 bg-primary text-white font-bold rounded-btn text-sm active:scale-95 transition-all duration-150 flex items-center justify-center gap-2"
+            type="button"
+            class="h-12 w-full rounded-btn bg-primary text-sm font-bold text-white transition-all duration-150 active:scale-95"
+            @click="goToMeeting"
           >
-            <span>{{ copied ? '복사 완료!' : '링크 복사하기' }}</span>
+            참여자 화면 보기
           </button>
           <button
-            @click="goToMeeting"
-            class="w-full h-12 border border-gray-200 text-gray-700 font-semibold rounded-btn text-sm active:scale-95 transition-all duration-150"
+            type="button"
+            class="h-12 w-full rounded-btn border border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-150 active:scale-95"
+            @click="goToHostManage"
           >
-            내 날짜 바로 입력하기
+            방장 관리 열기
           </button>
         </div>
       </div>
@@ -129,10 +168,11 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import DateRangeSheet from '../components/DateRangeSheet.vue'
 import { useRouter } from 'vue-router'
+import DateRangeSheet from '../components/DateRangeSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
-import { buildMeetingUrl, copyText } from '../lib/share.js'
+import { formatDisplayDate, formatLocalDate, rangeDayCount } from '../lib/meetingUtils.js'
+import { buildHostUrl, buildKakaoShareText, buildMeetingUrl, copyText } from '../lib/share.js'
 import { useMeetingStore } from '../stores/meeting.js'
 
 const router = useRouter()
@@ -146,34 +186,15 @@ const errorMsg = ref('')
 const rangePickerVisible = ref(false)
 
 const shareVisible = ref(false)
-const shareUrl = ref('')
-const copied = ref(false)
+const participantUrl = ref('')
+const hostUrl = ref('')
+const kakaoShareText = ref('')
+const copiedTarget = ref('')
 const createdId = ref('')
+const createdHostToken = ref('')
 const toastVisible = ref(false)
 const toastMsg = ref('')
 const toastType = ref('success')
-
-function formatLocalDate(date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function parseLocalDate(dateStr) {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  return new Date(year, month - 1, day)
-}
-
-function formatDateSummary(dateStr) {
-  const date = parseLocalDate(dateStr)
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`
-}
-
-function rangeDayCount(start, end) {
-  const diff = parseLocalDate(end) - parseLocalDate(start)
-  return Math.round(diff / 86400000) + 1
-}
 
 const today = formatLocalDate(new Date())
 
@@ -187,7 +208,7 @@ const hasDateRange = computed(() => Boolean(dateFrom.value && dateTo.value))
 
 const dateRangeLabel = computed(() => {
   if (!hasDateRange.value) return '시작일과 종료일을 한 번에 선택해 주세요'
-  return `${formatDateSummary(dateFrom.value)} ~ ${formatDateSummary(dateTo.value)}`
+  return `${formatDisplayDate(dateFrom.value, { withWeekday: false })} ~ ${formatDisplayDate(dateTo.value, { withWeekday: false })}`
 })
 
 const dateRangeHint = computed(() => {
@@ -217,32 +238,51 @@ async function create() {
 
   try {
     const meeting = await store.createMeeting(title.value.trim(), dateFrom.value, dateTo.value)
+
     createdId.value = meeting.id
-    shareUrl.value = buildMeetingUrl(meeting.id)
+    createdHostToken.value = meeting.host_token
+    participantUrl.value = buildMeetingUrl(meeting.id)
+    hostUrl.value = buildHostUrl(meeting.id, meeting.host_token)
+    kakaoShareText.value = buildKakaoShareText({
+      title: meeting.title,
+      participantUrl: participantUrl.value,
+    })
     shareVisible.value = true
   } catch (error) {
     console.error('[WHENSDAY] failed to create meeting', error)
-    errorMsg.value = error?.message || '약속 만들기에 실패했어요. 다시 시도해 주세요.'
+    errorMsg.value = error?.message || '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'
   } finally {
     submitting.value = false
   }
 }
 
-async function copyLink() {
+async function copyValue(target, value, successMessage) {
   try {
-    await copyText(shareUrl.value)
-    copied.value = true
-    showToast('링크를 복사했어요. 친구들에게 바로 보내 보세요.')
+    await copyText(value)
+    copiedTarget.value = target
+    showToast(successMessage)
     setTimeout(() => {
-      copied.value = false
+      if (copiedTarget.value === target) copiedTarget.value = ''
     }, 2000)
   } catch (error) {
-    showToast(error?.message || '링크 복사에 실패했어요. 직접 복사해 주세요.', 'error')
+    console.error(`[WHENSDAY] failed to copy ${target}`, error)
+    showToast('복사에 실패했어요. 잠시 후 다시 시도해 주세요.', 'error')
   }
+}
+
+function closeShareSheet() {
+  shareVisible.value = false
 }
 
 function goToMeeting() {
   router.push(`/meeting/${createdId.value}`)
+}
+
+function goToHostManage() {
+  router.push({
+    path: `/host/${createdId.value}`,
+    query: { token: createdHostToken.value },
+  })
 }
 
 function showToast(message, type = 'success') {
@@ -255,9 +295,9 @@ function showToast(message, type = 'success') {
 }
 
 const steps = [
-  { icon: '1', title: '날짜 범위 설정', desc: '약속을 조율할 기간을 먼저 골라요.' },
-  { icon: '2', title: '친구들에게 링크 공유', desc: '카카오톡이나 문자로 바로 보낼 수 있어요.' },
-  { icon: '3', title: '겹치는 날짜 확인', desc: '모두 가능한 날을 한눈에 확인해요.' },
+  { icon: '1', title: '날짜 범위 설정', desc: '만날 수 있는 기간을 먼저 정해요.' },
+  { icon: '2', title: '친구들에게 링크 공유', desc: '참여자 링크를 보내서 가능한 날짜를 받아요.' },
+  { icon: '3', title: '겹치는 날짜 확인', desc: '방장 화면에서 추천 날짜를 보고 확정해요.' },
 ]
 </script>
 

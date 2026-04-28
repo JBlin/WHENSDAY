@@ -6,7 +6,7 @@ const supabaseKey =
   import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export const SUPABASE_CONFIG_ERROR_MESSAGE =
-  'Supabase 연결 설정이 비어 있어요.\nVercel Project Settings > Environment Variables에 VITE_SUPABASE_URL과 VITE_SUPABASE_PUBLISHABLE_KEY를 추가한 뒤 다시 배포해 주세요.'
+  '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.'
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
 
