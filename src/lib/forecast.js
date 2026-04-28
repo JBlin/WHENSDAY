@@ -212,12 +212,11 @@ export function formatForecastSummary(item, type) {
 
   if (type === 'sea') {
     const indexLabel = item.totalIndex || '제공 전'
-    const tideLabel = item.tideLabel || '예보 제공 전'
     const waterTempLabel = formatRange(item.waterTempMin, item.waterTempMax, '°')
     const currentLabel = formatRange(item.currentMin, item.currentMax, 'kn')
     const windLabel = formatRange(item.windMin, item.windMax, 'm/s')
 
-    return `${indexLabel} · ${tideLabel} · 수온 ${waterTempLabel} · 유속 ${currentLabel} · 풍속 ${windLabel}`
+    return `낚시지수 ${indexLabel} · 수온 ${waterTempLabel} · 유속 ${currentLabel} · 풍속 ${windLabel}`
   }
 
   return ''
