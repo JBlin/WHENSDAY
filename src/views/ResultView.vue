@@ -32,7 +32,7 @@
       </div>
     </div>
 
-    <div v-else-if="store.meeting" class="flex-1 flex flex-col pb-32">
+    <div v-else-if="store.meeting" class="flex-1 flex flex-col pb-8">
       <div v-if="!store.responses.length" class="flex-1 flex items-center justify-center px-8 py-12">
         <div class="text-center">
           <p class="text-gray-700 font-semibold text-base">아직 아무도 참여하지 않았어요.</p>
@@ -77,24 +77,6 @@
       </div>
     </div>
 
-    <div
-      v-if="store.meeting && !store.loading"
-      class="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto bg-white border-t border-gray-100 px-5 py-4 safe-bottom flex gap-3"
-    >
-      <button
-        @click="copyLink"
-        class="flex-1 h-12 border-2 border-primary text-primary font-bold rounded-btn text-sm active:scale-95 transition-all duration-150 flex items-center justify-center gap-1.5"
-      >
-        <span>{{ copied ? '복사됨' : '링크 복사' }}</span>
-      </button>
-      <RouterLink
-        :to="`/meeting/${store.meeting.id}`"
-        class="flex-1 h-12 bg-primary text-white font-bold rounded-btn text-sm active:scale-95 transition-all duration-150 flex items-center justify-center"
-      >
-        나도 참여하기
-      </RouterLink>
-    </div>
-
     <ParticipantSheet
       :visible="sheetVisible"
       :date="selectedDate"
@@ -113,7 +95,6 @@ import BestDateCard from '../components/BestDateCard.vue'
 import HeatmapCalendar from '../components/HeatmapCalendar.vue'
 import ParticipantSheet from '../components/ParticipantSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
-import { buildMeetingUrl, copyText } from '../lib/share.js'
 import { hasVotedForMeeting } from '../lib/voteAccess.js'
 import { supabase } from '../lib/supabase.js'
 import { useMeetingStore } from '../stores/meeting.js'
@@ -124,7 +105,6 @@ const store = useMeetingStore()
 
 const sheetVisible = ref(false)
 const selectedDate = ref('')
-const copied = ref(false)
 const toastVisible = ref(false)
 const toastMsg = ref('')
 const toastType = ref('success')
@@ -174,21 +154,6 @@ function subscribeRealtime() {
 function openSheet(date) {
   selectedDate.value = date
   sheetVisible.value = true
-}
-
-async function copyLink() {
-  const url = buildMeetingUrl(route.params.id)
-
-  try {
-    await copyText(url)
-    copied.value = true
-    showToast('링크 복사 완료! 친구들에게 보내 보세요.')
-    setTimeout(() => {
-      copied.value = false
-    }, 2000)
-  } catch (error) {
-    showToast(error?.message || '복사에 실패했어요. 링크를 직접 복사해 주세요.', 'error')
-  }
 }
 
 function showToast(message, type = 'success') {

@@ -23,26 +23,19 @@
 
         <div>
           <label class="text-sm font-semibold text-gray-700 mb-1.5 block">날짜 범위</label>
-          <div class="flex items-center gap-2">
-            <input
-              v-model="dateFrom"
-              type="date"
-              :min="today"
-              :max="dateTo || maxDate"
-              class="flex-1 h-12 px-3 border border-gray-200 rounded-btn text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition bg-gray-50"
-              required
-              @change="clampDateTo"
-            />
-            <span class="text-gray-400 font-medium">~</span>
-            <input
-              v-model="dateTo"
-              type="date"
-              :min="dateFrom || today"
-              :max="maxDateTo"
-              class="flex-1 h-12 px-3 border border-gray-200 rounded-btn text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition bg-gray-50"
-              required
-            />
-          </div>
+          <button
+            type="button"
+            class="w-full min-h-12 px-4 py-3 border border-gray-200 rounded-btn text-left outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition bg-gray-50 flex items-center gap-3"
+            @click="rangePickerVisible = true"
+          >
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold" :class="hasDateRange ? 'text-gray-800' : 'text-gray-400'">
+                {{ dateRangeLabel }}
+              </p>
+              <p class="text-xs text-gray-400 mt-0.5">{{ dateRangeHint }}</p>
+            </div>
+            <span class="shrink-0 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-primary-light text-primary">선택</span>
+          </button>
           <p class="text-xs text-gray-400 mt-1.5">최대 60일 범위까지 설정할 수 있어요.</p>
         </div>
 
@@ -62,7 +55,9 @@
         <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">How It Works</h3>
         <div class="flex flex-col gap-3">
           <div v-for="step in steps" :key="step.icon" class="flex items-start gap-3">
-            <span class="text-xl shrink-0">{{ step.icon }}</span>
+            <span class="inline-flex w-6 h-6 shrink-0 items-center justify-center text-xl font-semibold leading-none text-center">
+              {{ step.icon }}
+            </span>
             <div>
               <p class="text-sm font-semibold text-gray-800">{{ step.title }}</p>
               <p class="text-xs text-gray-500 mt-0.5">{{ step.desc }}</p>
@@ -117,11 +112,24 @@
     </div>
   </Transition>
 
+  <DateRangeSheet
+    :open="rangePickerVisible"
+    :start-date="dateFrom"
+    :end-date="dateTo"
+    :min-date="today"
+    :max-date="maxDate"
+    :max-range-days="60"
+    @update:open="rangePickerVisible = $event"
+    @update:start-date="dateFrom = $event"
+    @update:end-date="dateTo = $event"
+  />
+
   <ToastMessage :visible="toastVisible" :message="toastMsg" :type="toastType" />
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
+import DateRangeSheet from '../components/DateRangeSheet.vue'
 import { useRouter } from 'vue-router'
 import ToastMessage from '../components/ToastMessage.vue'
 import { buildMeetingUrl, copyText } from '../lib/share.js'
@@ -135,6 +143,7 @@ const dateFrom = ref('')
 const dateTo = ref('')
 const submitting = ref(false)
 const errorMsg = ref('')
+const rangePickerVisible = ref(false)
 
 const shareVisible = ref(false)
 const shareUrl = ref('')
@@ -151,6 +160,21 @@ function formatLocalDate(date) {
   return `${year}-${month}-${day}`
 }
 
+function parseLocalDate(dateStr) {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
+function formatDateSummary(dateStr) {
+  const date = parseLocalDate(dateStr)
+  return `${date.getMonth() + 1}월 ${date.getDate()}일`
+}
+
+function rangeDayCount(start, end) {
+  const diff = parseLocalDate(end) - parseLocalDate(start)
+  return Math.round(diff / 86400000) + 1
+}
+
 const today = formatLocalDate(new Date())
 
 const maxDate = computed(() => {
@@ -159,17 +183,17 @@ const maxDate = computed(() => {
   return formatLocalDate(date)
 })
 
-const maxDateTo = computed(() => {
-  if (!dateFrom.value) return maxDate.value
-  const date = new Date(dateFrom.value + 'T00:00:00')
-  date.setDate(date.getDate() + 59)
-  return formatLocalDate(date)
+const hasDateRange = computed(() => Boolean(dateFrom.value && dateTo.value))
+
+const dateRangeLabel = computed(() => {
+  if (!hasDateRange.value) return '시작일과 종료일을 한 번에 선택해 주세요'
+  return `${formatDateSummary(dateFrom.value)} ~ ${formatDateSummary(dateTo.value)}`
 })
 
-function clampDateTo() {
-  if (dateTo.value && dateTo.value < dateFrom.value) dateTo.value = dateFrom.value
-  if (dateTo.value && dateTo.value > maxDateTo.value) dateTo.value = maxDateTo.value
-}
+const dateRangeHint = computed(() => {
+  if (!hasDateRange.value) return '달력을 열어서 범위를 고르고 완료하면 돼요.'
+  return `${rangeDayCount(dateFrom.value, dateTo.value)}일 범위가 선택됐어요.`
+})
 
 async function create() {
   errorMsg.value = ''
@@ -181,6 +205,11 @@ async function create() {
 
   if (!dateFrom.value || !dateTo.value) {
     errorMsg.value = '날짜 범위를 선택해 주세요.'
+    return
+  }
+
+  if (dateTo.value < dateFrom.value || rangeDayCount(dateFrom.value, dateTo.value) > 60) {
+    errorMsg.value = '날짜 범위를 다시 선택해 주세요.'
     return
   }
 

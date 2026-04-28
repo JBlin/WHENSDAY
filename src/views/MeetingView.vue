@@ -72,11 +72,11 @@
         </div>
       </div>
 
-      <div class="fixed bottom-0 left-0 right-0 z-20 max-w-[430px] mx-auto bg-white border-t border-gray-100 px-5 py-4 safe-bottom shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
+      <div class="fixed bottom-0 left-0 right-0 z-20 max-w-[430px] mx-auto bg-white border-t border-gray-100 px-5 pt-5 pb-[calc(env(safe-area-inset-bottom,0px)+24px)] shadow-[0_-8px_24px_rgba(15,23,42,0.04)]">
         <button
           @click="submit"
           :disabled="!name.trim() || !selectedDates.length || submitting"
-          class="w-full h-12 bg-primary text-white font-bold rounded-btn text-base shadow-sm active:scale-95 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="w-full h-12 bg-primary text-white font-bold rounded-btn text-base shadow-sm active:scale-95 transition-all duration-150 disabled:bg-gray-200 disabled:text-gray-400 disabled:opacity-100 disabled:cursor-not-allowed"
         >
           <span v-if="submitting">제출 중...</span>
           <span v-else-if="!name.trim()">이름을 먼저 입력해 주세요</span>
