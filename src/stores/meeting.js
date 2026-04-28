@@ -49,8 +49,26 @@ function normalizeMeetingRecord(data) {
   }
 }
 
+function normalizeResponseRecord(data) {
+  if (!data) return null
+
+  return {
+    ...data,
+    available_dates: Array.isArray(data.available_dates) ? data.available_dates : [],
+    is_host: Boolean(data.is_host),
+  }
+}
+
 async function insertMeetingRecord(payload) {
   const { error: err } = await supabase.from('meetings').insert(payload)
+
+  if (err) throw err
+}
+
+async function upsertResponseRecord(payload) {
+  const { error: err } = await supabase
+    .from('responses')
+    .upsert(payload, { onConflict: 'meeting_id,name' })
 
   if (err) throw err
 }
@@ -149,7 +167,7 @@ export const useMeetingStore = defineStore('meeting', () => {
 
       if (err) throw err
 
-      responses.value = data || []
+      responses.value = (data || []).map((response) => normalizeResponseRecord(response))
       return responses.value
     } catch (err) {
       logSupabaseError('failed to fetch responses', err)
@@ -254,22 +272,38 @@ export const useMeetingStore = defineStore('meeting', () => {
     }
   }
 
-  async function submitResponse(meetingId, name, availableDates) {
+  async function submitResponse(meetingId, name, availableDates, options = {}) {
     assertSupabaseConfigured()
 
     if (meeting.value?.status === 'confirmed') {
       throw createUserFacingError(CONFIRMED_MEETING_ERROR_MESSAGE)
     }
 
-    try {
-      const { error: err } = await supabase
-        .from('responses')
-        .upsert(
-          { meeting_id: meetingId, name, available_dates: availableDates },
-          { onConflict: 'meeting_id,name' }
-        )
+    const normalizedName = name.trim()
+    const payload = {
+      meeting_id: meetingId,
+      name: normalizedName,
+      available_dates: availableDates,
+    }
 
-      if (err) throw err
+    try {
+      if (options.isHost) {
+        try {
+          await upsertResponseRecord({
+            ...payload,
+            is_host: true,
+          })
+          return
+        } catch (err) {
+          if (!hasSchemaMismatch(err, ['is_host'])) {
+            throw err
+          }
+
+          logCompatibilityFallback('response upsert fallback: is_host column unavailable', err)
+        }
+      }
+
+      await upsertResponseRecord(payload)
     } catch (err) {
       logSupabaseError('failed to submit response', err)
       throw buildSupabaseError(err)

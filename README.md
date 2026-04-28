@@ -1,4 +1,4 @@
-# SetDate (셋데이트)
+# WHENSDAY
 
 친구들과 가능한 날짜를 빠르게 조율하는 Vue 3 + Supabase 앱입니다.
 
@@ -31,6 +31,10 @@ create table meetings (
   title text not null,
   date_from date not null,
   date_to date not null,
+  host_token text,
+  host_code text,
+  status text not null default 'open',
+  confirmed_date date,
   created_at timestamptz default now()
 );
 
@@ -39,9 +43,16 @@ create table responses (
   meeting_id uuid not null references meetings(id) on delete cascade,
   name text not null,
   available_dates date[] not null default '{}',
+  is_host boolean not null default false,
   created_at timestamptz default now(),
   unique (meeting_id, name)
 );
+
+alter table meetings add column if not exists host_token text;
+alter table meetings add column if not exists host_code text;
+alter table meetings add column if not exists status text not null default 'open';
+alter table meetings add column if not exists confirmed_date date;
+alter table responses add column if not exists is_host boolean not null default false;
 
 alter table meetings enable row level security;
 alter table responses enable row level security;

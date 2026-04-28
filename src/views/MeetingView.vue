@@ -65,6 +65,11 @@
       </div>
 
       <div v-else class="flex flex-1 flex-col gap-5 px-5 py-5">
+        <div v-if="isHost" class="rounded-card border border-amber-200 bg-amber-50 p-4">
+          <p class="text-sm font-semibold text-amber-800">방장님도 가능한 날짜를 선택해 주세요.</p>
+          <p class="mt-2 text-sm text-amber-700">방장님 응답도 다른 참여자와 똑같이 결과 집계에 포함돼요.</p>
+        </div>
+
         <div class="rounded-card bg-white p-4 shadow-sm">
           <label class="mb-2 block text-sm font-semibold text-gray-700">이름</label>
           <input
@@ -101,7 +106,7 @@
           <span v-if="submitting">제출 중...</span>
           <span v-else-if="!name.trim()">이름을 먼저 입력해 주세요</span>
           <span v-else-if="!selectedDates.length">날짜를 하나 이상 선택해 주세요</span>
-          <span v-else>제출하기</span>
+          <span v-else>{{ isHost ? '내 가능 날짜 제출하기' : '가능한 날짜 제출하기' }}</span>
         </button>
       </div>
     </div>
@@ -115,7 +120,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import CalendarPicker from '../components/CalendarPicker.vue'
 import ToastMessage from '../components/ToastMessage.vue'
-import { hasStoredHostAccess } from '../lib/hostAccess.js'
+import { hasStoredHostAccess, storeHostResponseName } from '../lib/hostAccess.js'
 import { formatDisplayDate } from '../lib/meetingUtils.js'
 import { hasVotedForMeeting, markMeetingAsVoted } from '../lib/voteAccess.js'
 import { supabase } from '../lib/supabase.js'
@@ -195,7 +200,16 @@ async function submit() {
   submitting.value = true
 
   try {
-    await store.submitResponse(route.params.id, name.value.trim(), selectedDates.value)
+    const normalizedName = name.value.trim()
+
+    await store.submitResponse(route.params.id, normalizedName, selectedDates.value, {
+      isHost: isHost.value,
+    })
+
+    if (isHost.value) {
+      storeHostResponseName(route.params.id, normalizedName)
+    }
+
     submitted.value = true
     hasVoted.value = true
     markMeetingAsVoted(route.params.id)

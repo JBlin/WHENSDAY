@@ -34,6 +34,17 @@
 
     <div v-else-if="store.meeting" class="flex-1 px-5 py-5 pb-8">
       <div class="flex flex-col gap-5">
+        <div v-if="showHostSubmissionPrompt" class="rounded-card border border-amber-200 bg-amber-50 p-4">
+          <p class="text-sm font-semibold text-amber-800">먼저 내 가능한 날짜를 제출해 주세요</p>
+          <p class="mt-2 text-sm text-amber-700">방장님도 첫 번째 참여자예요. 가능한 날짜를 체크해야 결과 집계에 포함돼요.</p>
+          <RouterLink
+            :to="`/meeting/${route.params.id}`"
+            class="mt-4 inline-flex h-11 items-center justify-center rounded-btn bg-primary px-4 text-sm font-bold text-white transition-all duration-150 active:scale-95"
+          >
+            내 가능 날짜 입력하러 가기
+          </RouterLink>
+        </div>
+
         <div v-if="isConfirmed" class="rounded-card border border-primary/15 bg-primary/[0.04] p-4">
           <p class="text-sm font-semibold text-primary">약속 날짜가 확정됐어요</p>
           <p class="mt-2 text-xl font-bold text-gray-900">{{ confirmedDateLabel }}</p>
@@ -42,7 +53,9 @@
 
         <div v-if="isHost" class="rounded-card border border-amber-200 bg-amber-50 p-4">
           <p class="text-sm font-semibold text-amber-800">방장 모드</p>
-          <p class="mt-2 text-sm text-amber-700">이 기기에서 방장 권한이 확인됐어요. 아래 추천 날짜 카드에서 바로 약속을 확정할 수 있어요.</p>
+          <p class="mt-2 text-sm text-amber-700">
+            {{ hostModeDescription }}
+          </p>
         </div>
 
         <div v-if="isConfirmed" class="rounded-card bg-white p-4 shadow-sm">
@@ -83,7 +96,7 @@
           :total-participants="store.responses.length"
           :confirmed-date="store.meeting.confirmed_date || ''"
           :pending-date="confirmingDate"
-          :show-confirm-button="isHost"
+          :show-confirm-button="canManageMeeting"
           title="추천 날짜 TOP 3"
           description="참여 인원이 많은 순서대로 보여드려요."
           @confirm="confirmDate"
@@ -120,7 +133,15 @@
               class="rounded-btn border border-gray-100 bg-gray-50 p-3"
             >
               <div class="flex items-center justify-between gap-3">
-                <p class="text-sm font-semibold text-gray-900">{{ response.name }}</p>
+                <div class="flex items-center gap-2">
+                  <p class="text-sm font-semibold text-gray-900">{{ response.name }}</p>
+                  <span
+                    v-if="response.is_host"
+                    class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700"
+                  >
+                    방장
+                  </span>
+                </div>
                 <span class="text-xs text-gray-400">{{ response.available_dates.length }}일 선택</span>
               </div>
               <div class="mt-2 flex flex-wrap gap-2">
@@ -190,7 +211,12 @@ import HeatmapCalendar from '../components/HeatmapCalendar.vue'
 import ParticipantSheet from '../components/ParticipantSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
 import { buildGoogleCalendarUrl, downloadIcsFile } from '../lib/calendar.js'
-import { getStoredHostToken, hasStoredHostAccess, storeHostToken } from '../lib/hostAccess.js'
+import {
+  getStoredHostResponseName,
+  getStoredHostToken,
+  hasStoredHostAccess,
+  storeHostToken,
+} from '../lib/hostAccess.js'
 import {
   formatDisplayDate,
   getPerfectMatchDates,
@@ -215,6 +241,7 @@ const hostCodeInput = ref('')
 const recoveringHost = ref(false)
 const confirmingDate = ref('')
 const storedHostToken = ref(getStoredHostToken(route.params.id))
+const storedHostResponseName = ref(getStoredHostResponseName(route.params.id))
 
 const isHost = computed(() => {
   if (!storedHostToken.value) return false
@@ -225,6 +252,25 @@ const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confi
 const recommendedDates = computed(() => getTopRecommendedDates(store.responses, 3))
 const perfectMatchDates = computed(() => getPerfectMatchDates(store.responses, store.responses.length))
 const topRecommendation = computed(() => recommendedDates.value[0] || null)
+const hostResponseName = computed(() => normalizeParticipantName(storedHostResponseName.value))
+const explicitHostResponse = computed(() => store.responses.find((response) => response.is_host))
+const hostHasSubmitted = computed(() => {
+  if (explicitHostResponse.value) return true
+  if (!isHost.value || !hostResponseName.value) return false
+
+  return store.responses.some(
+    (response) => normalizeParticipantName(response.name) === hostResponseName.value
+  )
+})
+const canManageMeeting = computed(() => isHost.value && hostHasSubmitted.value)
+const showHostSubmissionPrompt = computed(() => isHost.value && !hostHasSubmitted.value && !isConfirmed.value)
+const hostModeDescription = computed(() => {
+  if (hostHasSubmitted.value) {
+    return '이 기기에서 방장 권한이 확인됐어요. 아래 추천 날짜 카드에서 바로 약속을 확정할 수 있어요.'
+  }
+
+  return '먼저 내 가능한 날짜를 제출하면 추천 날짜를 보고 약속을 확정할 수 있어요.'
+})
 
 const conclusionTitle = computed(() => {
   if (perfectMatchDates.value.length) return '모두가 가능한 날을 찾았어요'
@@ -245,10 +291,27 @@ const conclusionDescription = computed(() => {
 })
 
 const participantSelections = computed(() =>
-  [...store.responses].map((response) => ({
-    ...response,
-    available_dates: [...(response.available_dates || [])].sort(),
-  }))
+  [...store.responses]
+    .map((response) => {
+      const fallbackHostMatch =
+        !explicitHostResponse.value &&
+        isHost.value &&
+        hostResponseName.value &&
+        normalizeParticipantName(response.name) === hostResponseName.value
+
+      return {
+        ...response,
+        is_host: Boolean(response.is_host || fallbackHostMatch),
+        available_dates: [...(response.available_dates || [])].sort(),
+      }
+    })
+    .sort((left, right) => {
+      if (left.is_host !== right.is_host) {
+        return Number(right.is_host) - Number(left.is_host)
+      }
+
+      return left.name.localeCompare(right.name, 'ko')
+    })
 )
 
 const calendarDescription = computed(() => {
@@ -320,6 +383,10 @@ function subscribeRealtime() {
 function openSheet(date) {
   selectedDate.value = date
   sheetVisible.value = true
+}
+
+function normalizeParticipantName(name) {
+  return String(name || '').trim().toLowerCase()
 }
 
 async function confirmDate(date) {

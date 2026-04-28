@@ -82,9 +82,9 @@
         <div class="mb-5">
           <h3 class="text-lg font-bold text-gray-900">약속 링크가 만들어졌어요</h3>
           <p class="mt-2 text-sm text-gray-500">
-            친구들에게 이 링크만 공유하면 돼요.
+            먼저 방장님의 가능한 날짜를 체크해 주세요.
             <br />
-            방장 권한은 이 기기에 자동으로 저장됐어요.
+            방장님도 참여자로 결과에 포함돼요.
           </p>
         </div>
 
@@ -96,22 +96,23 @@
         <button
           type="button"
           class="mb-3 h-12 w-full rounded-btn bg-primary text-sm font-bold text-white transition-all duration-150 active:scale-95"
-          @click="copyShareText"
+          @click="goToMeeting"
         >
-          {{ copiedShareText ? '복사 완료!' : '공유 문구 복사하기' }}
+          내 가능 날짜 체크하기
         </button>
 
         <button
           type="button"
           class="mb-5 h-12 w-full rounded-btn border border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-150 active:scale-95"
-          @click="goToResult"
+          @click="copyShareText"
         >
-          결과 보러가기
+          {{ copiedShareText ? '복사 완료!' : '공유 문구 복사하기' }}
         </button>
 
-        <div v-if="hostCode" class="rounded-card border border-amber-200 bg-amber-50 p-4">
-          <p class="text-sm font-semibold text-amber-800">방장 코드: {{ hostCode }}</p>
-          <p class="mt-2 text-sm text-amber-700">
+        <div v-if="hostCode" class="rounded-card border border-gray-200 bg-gray-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">방장 권한 복구 안내</p>
+          <p class="mt-2 text-sm font-semibold text-gray-700">방장 코드: {{ hostCode }}</p>
+          <p class="mt-2 text-xs leading-5 text-gray-500">
             기기를 바꾸거나 권한이 사라진 경우 이 코드로 방장 권한을 복구할 수 있어요.
           </p>
         </div>
@@ -242,8 +243,8 @@ function closeShareSheet() {
   shareVisible.value = false
 }
 
-function goToResult() {
-  router.push(`/meeting/${createdId.value}/result`)
+function goToMeeting() {
+  router.push(`/meeting/${createdId.value}`)
 }
 
 function showToast(message, type = 'success') {
