@@ -6,9 +6,11 @@ import {
 } from '../src/lib/forecastConfig.js'
 
 const KMA_BASE_URL = 'https://apis.data.go.kr/1360000/MidFcstInfoService'
+const FISHING_BASE_URL = 'https://apis.data.go.kr/1192136/fcstFishingv2/GetFcstFishingApiServicev2'
 const FORECAST_DAY_RANGE = [4, 5, 6, 7, 8, 9, 10]
 const KMA_NO_DATA_CODE = '03'
 const KMA_INVALID_KEY_CODE = '30'
+const FISHING_INVALID_KEY_CODE = '22'
 
 function getKstParts(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -74,10 +76,24 @@ function getPreviousTmFc(tmFc) {
   )
 }
 
+function getKstDateCompact(now = new Date()) {
+  const parts = getKstParts(now)
+  return `${parts.year}${parts.month}${parts.day}`
+}
+
 function toNumber(value) {
   if (value === '' || value == null) return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeDateString(value) {
+  if (!value) return ''
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+  if (/^\d{8}$/.test(value)) {
+    return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
+  }
+  return ''
 }
 
 function createApiError(status, message, details = {}) {
@@ -111,6 +127,26 @@ function logKmaError(endpoint, tmFc, header, extra = {}) {
     console.error('[WHENSDAY] SERVICE_KEY_IS_NOT_REGISTERED', {
       endpoint,
       tmFc,
+    })
+  }
+}
+
+function logFishingError(placeName, reqDate, header, extra = {}) {
+  const resultCode = String(header?.resultCode || '')
+  const resultMsg = header?.resultMsg || 'UNKNOWN'
+
+  console.error('[WHENSDAY] fishing API error', {
+    placeName,
+    reqDate,
+    resultCode,
+    resultMsg,
+    ...extra,
+  })
+
+  if (resultCode === FISHING_INVALID_KEY_CODE || resultMsg.includes('SERVICE KEY')) {
+    console.error('[WHENSDAY] SERVICE_KEY_IS_NOT_REGISTERED', {
+      placeName,
+      reqDate,
     })
   }
 }
@@ -194,6 +230,80 @@ async function requestKma(endpoint, params, tmFc) {
   return {
     header,
     items: extractKmaItems(payload),
+  }
+}
+
+async function requestFishingForecast(placeName, reqDate) {
+  const serviceKey = process.env.KMA_SERVICE_KEY
+
+  if (!serviceKey) {
+    throw createApiError(500, 'KMA service key is missing.')
+  }
+
+  const url = new URL(FISHING_BASE_URL)
+  url.search = new URLSearchParams({
+    serviceKey,
+    type: 'json',
+    numOfRows: '200',
+    pageNo: '1',
+    reqDate,
+    gubun: '선상',
+    placeName,
+  }).toString()
+
+  const response = await fetch(url.toString())
+  const text = await response.text()
+  const payload = parseJsonSafely(text)
+  const header = payload?.header
+  const resultCode = String(header?.resultCode || '')
+  const resultMsg = header?.resultMsg || ''
+
+  if (header && resultCode !== '00') {
+    logFishingError(placeName, reqDate, header)
+  }
+
+  if (!response.ok) {
+    throw createApiError(502, 'Fishing forecast API request failed.', {
+      status: response.status,
+      statusText: response.statusText,
+      resultCode,
+      resultMsg,
+      rawText: text.slice(0, 300),
+    })
+  }
+
+  if (!payload || !header) {
+    throw createApiError(502, 'Fishing forecast API returned an unexpected response.', {
+      rawText: text.slice(0, 300),
+    })
+  }
+
+  if (resultCode === KMA_NO_DATA_CODE) {
+    throw createApiError(200, 'No fishing forecast data available.', {
+      resultCode,
+      resultMsg,
+      isNoData: true,
+    })
+  }
+
+  if (resultCode === FISHING_INVALID_KEY_CODE) {
+    throw createApiError(502, 'Invalid service key for fishing forecast.', {
+      resultCode,
+      resultMsg,
+      isInvalidKey: true,
+    })
+  }
+
+  if (resultCode !== '00') {
+    throw createApiError(502, 'Fishing forecast API returned an error response.', {
+      resultCode,
+      resultMsg,
+    })
+  }
+
+  return {
+    header,
+    items: payload?.body?.items?.item || [],
   }
 }
 
@@ -323,6 +433,50 @@ function normalizeSeaForecast(items) {
   return normalized
 }
 
+function createSeaDetailPeriod(value) {
+  if (value === '오전') return 'am'
+  if (value === '오후') return 'pm'
+  return 'all'
+}
+
+function pickFirstByDateAndPeriod(items) {
+  const seen = new Set()
+
+  return items.filter((item) => {
+    const key = `${item.predcYmd}|${item.predcNoonSeCd || '일'}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function normalizeSeaFishingDetails(items) {
+  return pickFirstByDateAndPeriod(items)
+    .map((item) => ({
+      date: normalizeDateString(item.predcYmd),
+      period: createSeaDetailPeriod(item.predcNoonSeCd),
+      periodLabel: item.predcNoonSeCd || '일',
+      tideLabel: item.tdlvHrCn || '',
+      totalIndex: item.totalIndex || '',
+      waveMin: toNumber(item.minWvhgt),
+      waveMax: toNumber(item.maxWvhgt),
+      waterTempMin: toNumber(item.minWtem),
+      waterTempMax: toNumber(item.maxWtem),
+      currentMin: toNumber(item.minCrsp),
+      currentMax: toNumber(item.maxCrsp),
+      windMin: toNumber(item.minWspd),
+      windMax: toNumber(item.maxWspd),
+    }))
+    .filter((item) => item.date)
+    .sort((left, right) => {
+      const byDate = left.date.localeCompare(right.date)
+      if (byDate !== 0) return byDate
+
+      const order = { am: 0, pm: 1, all: 2 }
+      return order[left.period] - order[right.period]
+    })
+}
+
 function resolveRequestConfig(query) {
   const type = String(query.type || '').trim()
 
@@ -346,6 +500,7 @@ function resolveRequestConfig(query) {
       },
       normalize: normalizeSeaForecast,
       extraPayload: { seaArea: seaArea.id },
+      fishingPlaceName: seaArea.fishingPlaceName,
     }
   }
 
@@ -415,6 +570,43 @@ async function fetchForecastWithFallback(config) {
   throw lastError || createApiError(502, 'Failed to fetch forecast data.')
 }
 
+async function fetchSeaPayload(config) {
+  const [kmaPayload, fishingResult] = await Promise.allSettled([
+    fetchForecastWithFallback(config),
+    requestFishingForecast(config.fishingPlaceName, getKstDateCompact()),
+  ])
+
+  if (kmaPayload.status === 'rejected' && fishingResult.status === 'rejected') {
+    throw kmaPayload.reason || fishingResult.reason
+  }
+
+  const basePayload =
+    kmaPayload.status === 'fulfilled'
+      ? kmaPayload.value
+      : {
+          ok: true,
+          type: config.type,
+          tmFc: getLatestTmFc(),
+          items: [],
+          seaArea: config.extraPayload.seaArea,
+          message: '선택한 기간에 제공되는 예보 정보가 없어요.',
+          noData: true,
+        }
+
+  let detailItems = []
+
+  if (fishingResult.status === 'fulfilled') {
+    detailItems = normalizeSeaFishingDetails(fishingResult.value.items)
+  } else if (!fishingResult.reason?.details?.isNoData) {
+    console.error('[WHENSDAY] fishing detail fetch failed', fishingResult.reason)
+  }
+
+  return {
+    ...basePayload,
+    detailItems,
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     res.setHeader('Allow', 'GET')
@@ -426,7 +618,10 @@ export default async function handler(req, res) {
 
   try {
     const config = resolveRequestConfig(req.query)
-    const payload = await fetchForecastWithFallback(config)
+    const payload =
+      config.type === 'sea'
+        ? await fetchSeaPayload(config)
+        : await fetchForecastWithFallback(config)
     return res.status(200).json(payload)
   } catch (error) {
     console.error('[WHENSDAY] forecast proxy failed', error)

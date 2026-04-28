@@ -22,18 +22,21 @@ export const SEA_AREA_MAP = {
     label: '서해',
     forecastCode: '12A20000',
     zoneLabel: '서해중부',
+    fishingPlaceName: '방포항',
   },
   south: {
     id: 'south',
     label: '남해',
     forecastCode: '12B20000',
     zoneLabel: '남해동부',
+    fishingPlaceName: '거문도',
   },
   east: {
     id: 'east',
     label: '동해',
     forecastCode: '12C10000',
     zoneLabel: '동해남부',
+    fishingPlaceName: '남애항',
   },
 }
 

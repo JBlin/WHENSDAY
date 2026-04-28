@@ -5,9 +5,7 @@
     </p>
 
     <div v-else class="space-y-4">
-      <div>
-        <p class="text-sm font-semibold text-gray-900">{{ infoTitle }}</p>
-      </div>
+      <p class="text-sm font-semibold text-gray-900">{{ infoTitle }}</p>
 
       <p v-if="loading" class="text-sm text-gray-500">참고 정보를 불러오는 중이에요...</p>
 
@@ -21,9 +19,9 @@
           <div class="overflow-hidden rounded-xl border border-white bg-white">
             <div
               v-for="row in selectedDateRows"
-              :key="`selected-${row.date}`"
+              :key="row.key"
               class="flex items-start justify-between gap-3 px-3 py-2.5 text-sm"
-              :class="row === selectedDateRows[selectedDateRows.length - 1] ? '' : 'border-b border-gray-100'"
+              :class="row.isLast ? '' : 'border-b border-gray-100'"
             >
               <span class="shrink-0 font-medium text-gray-700">{{ row.dateLabel }}</span>
               <span
@@ -41,9 +39,9 @@
           <div class="overflow-hidden rounded-xl border border-white bg-white">
             <div
               v-for="row in forecastRows"
-              :key="`forecast-${row.date}`"
+              :key="row.key"
               class="flex items-start justify-between gap-3 px-3 py-2.5 text-sm"
-              :class="row === forecastRows[forecastRows.length - 1] ? '' : 'border-b border-gray-100'"
+              :class="row.isLast ? '' : 'border-b border-gray-100'"
             >
               <span class="shrink-0 font-medium text-gray-700">{{ row.dateLabel }}</span>
               <span class="min-w-0 text-right text-gray-600">{{ row.summary }}</span>
@@ -68,6 +66,7 @@ import { computed } from 'vue'
 import {
   FORECAST_EMPTY_MESSAGE,
   formatForecastDate,
+  formatForecastPeriodLabel,
   formatForecastSummary,
 } from '../lib/forecast.js'
 import { getForecastTypeLabel, getSeaAreaLabel } from '../lib/forecastConfig.js'
@@ -79,6 +78,7 @@ const props = defineProps({
   selectedType: { type: String, default: '' },
   seaArea: { type: String, default: '' },
   items: { type: Array, default: () => [] },
+  detailItems: { type: Array, default: () => [] },
   selectedDates: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   error: { type: Boolean, default: false },
@@ -102,34 +102,114 @@ const itemMap = computed(() => {
   }, new Map())
 })
 
+const seaDetailMap = computed(() => {
+  return props.detailItems.reduce((map, item) => {
+    if (!item?.date) return map
+
+    const current = map.get(item.date) || []
+    current.push(item)
+    map.set(item.date, current)
+    return map
+  }, new Map())
+})
+
 const selectedDateRows = computed(() => {
-  return [...props.selectedDates]
+  if (!props.selectedDates.length) return []
+
+  if (props.selectedType === 'sea') {
+    const rows = props.selectedDates
+      .slice()
+      .sort()
+      .flatMap((date) => {
+        const dateItems = seaDetailMap.value.get(date) || []
+
+        if (!dateItems.length) {
+          return [
+            {
+              key: `selected-${date}-pending`,
+              dateLabel: formatForecastDate(date),
+              summary: PROVIDING_LATER_MESSAGE,
+              isProvided: false,
+            },
+          ]
+        }
+
+        return dateItems.map((item, index) => ({
+          key: `selected-${date}-${item.period || 'all'}-${index}`,
+          dateLabel: `${formatForecastDate(date)} ${formatForecastPeriodLabel(
+            item.period,
+            item.periodLabel
+          )}`,
+          summary: formatForecastSummary(item, props.selectedType),
+          isProvided: true,
+        }))
+      })
+
+    return withLastFlag(rows)
+  }
+
+  const rows = props.selectedDates
+    .slice()
     .sort()
     .map((date) => {
       const item = itemMap.value.get(date)
 
       return {
-        date,
+        key: `selected-${date}`,
         dateLabel: formatForecastDate(date),
         summary: item ? formatForecastSummary(item, props.selectedType) : PROVIDING_LATER_MESSAGE,
         isProvided: Boolean(item),
       }
     })
+
+  return withLastFlag(rows)
 })
 
 const forecastRows = computed(() => {
   const selectedDateSet = new Set(props.selectedDates)
 
-  return props.items
+  if (props.selectedType === 'sea') {
+    const rows = props.detailItems
+      .filter((item) => !selectedDateSet.has(item.date))
+      .map((item, index) => ({
+        key: `forecast-${item.date}-${item.period || 'all'}-${index}`,
+        dateLabel: `${formatForecastDate(item.date)} ${formatForecastPeriodLabel(
+          item.period,
+          item.periodLabel
+        )}`,
+        summary: formatForecastSummary(item, props.selectedType),
+      }))
+
+    return withLastFlag(rows)
+  }
+
+  const rows = props.items
     .filter((item) => !selectedDateSet.has(item.date))
     .map((item) => ({
-      date: item.date,
+      key: `forecast-${item.date}`,
       dateLabel: formatForecastDate(item.date),
       summary: formatForecastSummary(item, props.selectedType),
     }))
+
+  return withLastFlag(rows)
 })
 
 const primaryEmptyMessage = computed(() => props.emptyMessage || FORECAST_EMPTY_MESSAGE)
 const secondaryEmptyMessage = computed(() => SECONDARY_EMPTY_MESSAGE)
-const showNoForecastNote = computed(() => !props.items.length)
+const showNoForecastNote = computed(() => {
+  if (!props.selectedType || props.loading || props.error) return false
+
+  if (props.selectedType === 'sea') {
+    return !props.detailItems.length
+  }
+
+  return !props.items.length
+})
+
+function withLastFlag(rows) {
+  return rows.map((row, index) => ({
+    ...row,
+    isLast: index === rows.length - 1,
+  }))
+}
 </script>

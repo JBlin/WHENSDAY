@@ -98,11 +98,13 @@
             v-model="selectedDates"
             :date-from="store.meeting.date_from"
             :date-to="store.meeting.date_to"
+            :tide-labels="calendarTideLabels"
           />
           <CalendarInfoList
             :selected-type="selectedInfoType"
             :sea-area="selectedSeaArea"
             :items="visibleForecastItems"
+            :detail-items="visibleForecastDetailItems"
             :selected-dates="selectedDates"
             :loading="forecastLoading"
             :error="forecastError"
@@ -140,7 +142,12 @@ import CalendarInfoList from '../components/CalendarInfoList.vue'
 import CalendarInfoToggle from '../components/CalendarInfoToggle.vue'
 import ToastMessage from '../components/ToastMessage.vue'
 import { DEFAULT_SEA_AREA } from '../lib/forecastConfig.js'
-import { fetchForecast, filterForecastItemsByRange } from '../lib/forecast.js'
+import {
+  buildTideLabelMap,
+  fetchForecast,
+  filterForecastDetailItemsByRange,
+  filterForecastItemsByRange,
+} from '../lib/forecast.js'
 import { hasStoredHostAccess, storeHostResponseName } from '../lib/hostAccess.js'
 import { formatDisplayDate } from '../lib/meetingUtils.js'
 import { hasVotedForMeeting, markMeetingAsVoted } from '../lib/voteAccess.js'
@@ -162,6 +169,7 @@ const hasVoted = ref(hasVotedForMeeting(route.params.id))
 const selectedInfoType = ref('')
 const selectedSeaArea = ref(DEFAULT_SEA_AREA)
 const forecastItems = ref([])
+const forecastDetailItems = ref([])
 const forecastLoading = ref(false)
 const forecastError = ref(false)
 const forecastEmptyMessage = ref('')
@@ -172,6 +180,16 @@ const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confi
 const canViewResult = computed(() => submitted.value || hasVoted.value || isConfirmed.value || isHost.value)
 const visibleForecastItems = computed(() =>
   filterForecastItemsByRange(forecastItems.value, store.meeting?.date_from, store.meeting?.date_to)
+)
+const visibleForecastDetailItems = computed(() =>
+  filterForecastDetailItemsByRange(
+    forecastDetailItems.value,
+    store.meeting?.date_from,
+    store.meeting?.date_to
+  )
+)
+const calendarTideLabels = computed(() =>
+  selectedInfoType.value === 'sea' ? buildTideLabelMap(visibleForecastDetailItems.value) : {}
 )
 
 let realtimeChannel = null
@@ -209,6 +227,7 @@ watch(
 
     if (!type || !dateFrom || !dateTo) {
       forecastItems.value = []
+      forecastDetailItems.value = []
       forecastLoading.value = false
       forecastError.value = false
       forecastEmptyMessage.value = ''
@@ -220,6 +239,7 @@ watch(
     if (forecastCache.has(cacheKey)) {
       const cached = forecastCache.get(cacheKey)
       forecastItems.value = cached.items
+      forecastDetailItems.value = cached.detailItems || []
       forecastLoading.value = false
       forecastError.value = false
       forecastEmptyMessage.value = cached.message
@@ -238,9 +258,11 @@ watch(
       if (requestId !== forecastRequestId) return
 
       const items = Array.isArray(payload?.items) ? payload.items : []
+      const detailItems = Array.isArray(payload?.detailItems) ? payload.detailItems : []
       const message = payload?.message || ''
-      forecastCache.set(cacheKey, { items, message })
+      forecastCache.set(cacheKey, { items, detailItems, message })
       forecastItems.value = items
+      forecastDetailItems.value = detailItems
       forecastEmptyMessage.value = message
     } catch (error) {
       console.error('[WHENSDAY] failed to fetch forecast info', error)
@@ -248,6 +270,7 @@ watch(
       if (requestId !== forecastRequestId) return
 
       forecastItems.value = []
+      forecastDetailItems.value = []
       forecastError.value = true
       forecastEmptyMessage.value = ''
     } finally {

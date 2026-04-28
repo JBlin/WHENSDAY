@@ -52,6 +52,10 @@ export function filterForecastItemsByRange(items, dateFrom, dateTo) {
   })
 }
 
+export function filterForecastDetailItemsByRange(items, dateFrom, dateTo) {
+  return filterForecastItemsByRange(items, dateFrom, dateTo)
+}
+
 function getBaseDateFromTmFc(tmFc) {
   if (!tmFc || tmFc.length < 8) return ''
   return `${tmFc.slice(0, 4)}-${tmFc.slice(4, 6)}-${tmFc.slice(6, 8)}`
@@ -118,29 +122,28 @@ function normalizeTemperatureItems(payload) {
 }
 
 function normalizeSeaItems(payload) {
-  const grouped = groupByDayOffset(payload.items || [])
+  const detailGroups = (payload.detailItems || []).reduce((map, item) => {
+    if (!item?.date) return map
+    if (!map.has(item.date)) {
+      map.set(item.date, item)
+    }
+    return map
+  }, new Map())
 
-  return [...grouped.entries()]
-    .map(([dayOffsetKey, items]) => {
-      const dayOffset = Number(dayOffsetKey)
-      const preferred = pickPreferredPeriodItem(items)
-      const waveMinValues = items
-        .map((item) => item.waveMin)
-        .filter((value) => Number.isFinite(value))
-      const waveMaxValues = items
-        .map((item) => item.waveMax)
-        .filter((value) => Number.isFinite(value))
-
-      if (!preferred) return null
-
-      return {
-        date: buildDateFromOffset(payload.tmFc, dayOffset),
-        weather: preferred.weather || '제공 전',
-        waveMin: waveMinValues.length ? Math.min(...waveMinValues) : null,
-        waveMax: waveMaxValues.length ? Math.max(...waveMaxValues) : null,
-      }
-    })
-    .filter((item) => item?.date)
+  return [...detailGroups.values()]
+    .map((item) => ({
+      date: item.date,
+      tideLabel: item.tideLabel || '',
+      totalIndex: item.totalIndex || '',
+      waterTempMin: item.waterTempMin,
+      waterTempMax: item.waterTempMax,
+      currentMin: item.currentMin,
+      currentMax: item.currentMax,
+      windMin: item.windMin,
+      windMax: item.windMax,
+      waveMin: item.waveMin,
+      waveMax: item.waveMax,
+    }))
     .sort((left, right) => left.date.localeCompare(right.date))
 }
 
@@ -152,6 +155,7 @@ export function normalizeForecastPayload(payload) {
     noData: Boolean(payload?.noData),
     message: payload?.message || FORECAST_EMPTY_MESSAGE,
     items: [],
+    detailItems: [],
   }
 
   if (normalized.type === 'weather') {
@@ -166,6 +170,7 @@ export function normalizeForecastPayload(payload) {
 
   if (normalized.type === 'sea') {
     normalized.items = normalizeSeaItems(payload)
+    normalized.detailItems = Array.isArray(payload?.detailItems) ? payload.detailItems : []
     return normalized
   }
 
@@ -206,19 +211,50 @@ export function formatForecastSummary(item, type) {
   }
 
   if (type === 'sea') {
-    const waveLabel =
-      item.waveMin != null && item.waveMax != null
-        ? `${item.waveMin}~${item.waveMax}m`
-        : item.waveMin != null
-          ? `${item.waveMin}m`
-          : item.waveMax != null
-            ? `${item.waveMax}m`
-            : '제공 전'
+    const indexLabel = item.totalIndex || '제공 전'
+    const tideLabel = item.tideLabel || '예보 제공 전'
+    const waterTempLabel = formatRange(item.waterTempMin, item.waterTempMax, '°')
+    const currentLabel = formatRange(item.currentMin, item.currentMax, 'kn')
+    const windLabel = formatRange(item.windMin, item.windMax, 'm/s')
 
-    return `${item.weather} · 파고 ${waveLabel}`
+    return `${indexLabel} · ${tideLabel} · 수온 ${waterTempLabel} · 유속 ${currentLabel} · 풍속 ${windLabel}`
   }
 
   return ''
+}
+
+function formatRange(min, max, unit) {
+  const minLabel = Number.isFinite(min) ? `${min}` : ''
+  const maxLabel = Number.isFinite(max) ? `${max}` : ''
+
+  if (minLabel && maxLabel) {
+    return `${minLabel}~${maxLabel}${unit}`
+  }
+
+  if (minLabel) {
+    return `${minLabel}${unit}`
+  }
+
+  if (maxLabel) {
+    return `${maxLabel}${unit}`
+  }
+
+  return '제공 전'
+}
+
+export function buildTideLabelMap(items) {
+  return items.reduce((map, item) => {
+    if (!item?.date || !item?.tideLabel || map[item.date]) return map
+    map[item.date] = item.tideLabel
+    return map
+  }, {})
+}
+
+export function formatForecastPeriodLabel(period, periodLabel = '') {
+  if (periodLabel) return periodLabel
+  if (period === 'am') return '오전'
+  if (period === 'pm') return '오후'
+  return '일'
 }
 
 export function getForecastSelectionSummary(type, seaArea) {

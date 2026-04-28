@@ -25,15 +25,30 @@
           type="button"
           :disabled="!day.inRange"
           @click="toggleDate(day.date)"
-          class="flex items-center justify-center h-10 w-full rounded-lg text-sm font-medium transition-all duration-150 relative"
+          class="relative flex h-12 w-full items-center justify-center rounded-lg text-sm font-medium transition-all duration-150"
           :class="dayClass(day)"
         >
           <span v-if="isSelected(day.date) && day.inRange" class="absolute inset-0 flex items-center justify-center">
-            <span class="w-9 h-9 rounded-lg bg-green-500 flex items-center justify-center text-white font-semibold text-sm">
-              {{ day.num }}
+            <span class="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-green-500 px-0.5 text-white">
+              <span class="text-sm font-semibold leading-none">{{ day.num }}</span>
+              <span v-if="tideLabels[day.date]" class="mt-1 text-[9px] font-medium leading-none text-white/90 tide-label">
+                {{ tideLabels[day.date] }}
+              </span>
             </span>
           </span>
-          <span v-else :class="day.inRange ? '' : 'opacity-25'">{{ day.num }}</span>
+          <span
+            v-else
+            :class="day.inRange ? '' : 'opacity-25'"
+            class="flex flex-col items-center justify-center px-0.5"
+          >
+            <span class="leading-none">{{ day.num }}</span>
+            <span
+              v-if="tideLabels[day.date]"
+              class="mt-1 text-[9px] font-medium leading-none text-gray-400 tide-label"
+            >
+              {{ tideLabels[day.date] }}
+            </span>
+          </span>
         </button>
       </div>
     </div>
@@ -47,6 +62,7 @@ const props = defineProps({
   dateFrom: { type: String, required: true },
   dateTo: { type: String, required: true },
   modelValue: { type: Array, default: () => [] },
+  tideLabels: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['update:modelValue'])
