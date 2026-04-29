@@ -193,6 +193,10 @@ export const useMeetingStore = defineStore('meeting', () => {
     console.error(`[WHENSDAY] ${context}`, details)
   }
 
+  function logCompatibilityFallback(context, details) {
+    console.warn(`[WHENSDAY] ${context}`, details)
+  }
+
   function buildSupabaseError(err, options = {}) {
     const { notFoundMessage = NOT_FOUND_ERROR_MESSAGE } = options
 

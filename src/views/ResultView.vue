@@ -2,17 +2,28 @@
   <div class="min-h-screen bg-white flex flex-col">
     <header class="sticky top-0 z-10 bg-white px-5 pb-4 pt-5 shadow-sm">
       <div class="flex items-center gap-3">
-        <RouterLink to="/" class="font-brand shrink-0 text-lg font-black uppercase tracking-widest text-primary">W</RouterLink>
+        <RouterLink
+          to="/"
+          class="font-brand shrink-0 text-lg font-black uppercase tracking-widest text-primary"
+        >
+          W
+        </RouterLink>
         <div class="min-w-0 flex-1">
-          <p v-if="store.meeting" class="truncate text-sm font-bold text-gray-900">{{ store.meeting.title }}</p>
+          <p v-if="store.meeting" class="truncate text-sm font-bold text-gray-900">
+            {{ store.meeting.title }}
+          </p>
           <div class="mt-0.5 flex items-center gap-2">
             <span class="text-xs text-gray-400">{{ store.responses.length }}명 참여</span>
             <span v-if="store.responses.length" class="h-1 w-1 rounded-full bg-gray-300" />
             <span v-if="store.responses.length" class="relative flex h-2 w-2">
-              <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+              <span
+                class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"
+              />
               <span class="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
             </span>
-            <span v-if="store.responses.length" class="text-xs font-medium text-green-600">실시간 업데이트</span>
+            <span v-if="store.responses.length" class="text-xs font-medium text-green-600">
+              실시간 업데이트
+            </span>
           </div>
         </div>
       </div>
@@ -20,28 +31,37 @@
 
     <div v-if="store.loading" class="flex flex-1 items-center justify-center">
       <div class="text-center">
-        <div class="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+        <div
+          class="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"
+        />
         <p class="text-sm text-gray-400">불러오는 중...</p>
       </div>
     </div>
 
     <div v-else-if="store.error" class="flex flex-1 items-center justify-center px-5">
       <div class="text-center">
-        <p class="mb-2 text-xl font-bold text-gray-800">약속을 찾을 수 없어요.</p>
-        <RouterLink to="/" class="mt-4 inline-block text-sm font-semibold text-primary">처음으로 가기</RouterLink>
+        <p class="mb-2 text-xl font-bold text-gray-800">약속을 찾을 수 없어요</p>
+        <RouterLink to="/" class="mt-4 inline-block text-sm font-semibold text-primary">
+          처음으로 가기
+        </RouterLink>
       </div>
     </div>
 
     <div v-else-if="store.meeting" class="flex-1 px-5 py-5 pb-8">
       <div class="flex flex-col gap-5">
-        <div v-if="showHostSubmissionPrompt" class="rounded-card border border-amber-200 bg-amber-50 p-4">
-          <p class="text-sm font-semibold text-amber-800">먼저 내 가능한 날짜를 제출해 주세요</p>
-          <p class="mt-2 text-sm text-amber-700">방장님도 첫 번째 참여자예요. 가능한 날짜를 체크해야 결과 집계에 포함돼요.</p>
+        <div
+          v-if="showHostSubmissionPrompt"
+          class="rounded-card border border-amber-200 bg-amber-50 p-4"
+        >
+          <p class="text-sm font-semibold text-amber-800">먼저 방장 가능한 날짜를 제출해 주세요.</p>
+          <p class="mt-2 text-sm text-amber-700">
+            방장도 참여자로 가능한 날짜를 체크해야 결과 집계에 포함돼요.
+          </p>
           <RouterLink
             :to="`/meeting/${route.params.id}`"
             class="mt-4 inline-flex h-11 items-center justify-center rounded-btn bg-primary px-4 text-sm font-bold text-white transition-all duration-150 active:scale-95"
           >
-            내 가능 날짜 입력하러 가기
+            내 가능한 날짜 입력하러 가기
           </RouterLink>
         </div>
 
@@ -53,14 +73,14 @@
 
         <div v-if="isHost" class="rounded-card border border-amber-200 bg-amber-50 p-4">
           <p class="text-sm font-semibold text-amber-800">방장 모드</p>
-          <p class="mt-2 text-sm text-amber-700">
-            {{ hostModeDescription }}
-          </p>
+          <p class="mt-2 text-sm text-amber-700">{{ hostModeDescription }}</p>
         </div>
 
         <div v-if="isConfirmed" class="rounded-card bg-white p-4 shadow-sm">
-          <h3 class="text-base font-bold text-gray-900">캘린더에 저장하기</h3>
-          <p class="mt-1 text-sm text-gray-500">시간 정보가 없어서 하루 종일 일정으로 저장돼요.</p>
+          <h3 class="text-base font-bold text-gray-900">캘린더에 추가하기</h3>
+          <p class="mt-1 text-sm text-gray-500">
+            시간 정보가 없어 하루 종일 일정으로 추가돼요.
+          </p>
           <div class="mt-4 flex flex-col gap-3">
             <button
               type="button"
@@ -68,13 +88,6 @@
               @click="openGoogleCalendar"
             >
               구글 캘린더에 추가
-            </button>
-            <button
-              type="button"
-              class="h-12 w-full rounded-btn border border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-150 active:scale-95"
-              @click="downloadCalendarFile"
-            >
-              아이폰/기타 캘린더에 추가
             </button>
           </div>
         </div>
@@ -87,7 +100,9 @@
 
         <div v-if="!store.responses.length" class="rounded-card bg-white p-5 text-center shadow-sm">
           <p class="text-base font-semibold text-gray-700">아직 아무도 참여하지 않았어요.</p>
-          <p class="mt-1 text-sm text-gray-400">참여가 쌓이면 추천 날짜와 확정 후보를 바로 보여드릴게요.</p>
+          <p class="mt-1 text-sm text-gray-400">
+            참여가 모이면 추천 날짜와 확정 후보를 바로 보여드릴게요.
+          </p>
         </div>
 
         <BestDateCard
@@ -105,7 +120,9 @@
         <div v-if="store.responses.length" class="rounded-card bg-white p-4 shadow-sm">
           <h3 class="text-sm font-semibold text-gray-700">날짜별 가능 인원</h3>
           <div class="mt-4">
-            <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">상태 안내</p>
+            <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400">
+              상태 안내
+            </p>
             <div class="flex flex-wrap items-center gap-3">
               <div v-for="item in legend" :key="item.label" class="flex items-center gap-1.5">
                 <div class="h-4 w-4 rounded" :style="{ backgroundColor: item.color }" />
@@ -186,7 +203,9 @@
                 <span v-else>권한 복구</span>
               </button>
             </div>
-            <p class="mt-2 text-xs text-gray-400">약속 생성 완료 화면에서 받은 6자리 방장 코드를 입력해 주세요.</p>
+            <p class="mt-2 text-xs text-gray-400">
+              약속 생성 완료 화면에서 받은 6자리 방장 코드를 입력해 주세요.
+            </p>
           </div>
         </div>
       </div>
@@ -210,7 +229,7 @@ import BestDateCard from '../components/BestDateCard.vue'
 import HeatmapCalendar from '../components/HeatmapCalendar.vue'
 import ParticipantSheet from '../components/ParticipantSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
-import { buildGoogleCalendarUrl, downloadIcsFile } from '../lib/calendar.js'
+import { buildGoogleCalendarUrl } from '../lib/calendar.js'
 import {
   getStoredHostResponseName,
   getStoredHostToken,
@@ -247,13 +266,18 @@ const isHost = computed(() => {
   if (!storedHostToken.value) return false
   return hasStoredHostAccess(route.params.id, store.meeting?.host_token || '')
 })
-const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
+const isConfirmed = computed(
+  () => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date
+)
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
 const recommendedDates = computed(() => getTopRecommendedDates(store.responses, 3))
-const perfectMatchDates = computed(() => getPerfectMatchDates(store.responses, store.responses.length))
+const perfectMatchDates = computed(() =>
+  getPerfectMatchDates(store.responses, store.responses.length)
+)
 const topRecommendation = computed(() => recommendedDates.value[0] || null)
 const hostResponseName = computed(() => normalizeParticipantName(storedHostResponseName.value))
 const explicitHostResponse = computed(() => store.responses.find((response) => response.is_host))
+
 const hostHasSubmitted = computed(() => {
   if (explicitHostResponse.value) return true
   if (!isHost.value || !hostResponseName.value) return false
@@ -262,19 +286,22 @@ const hostHasSubmitted = computed(() => {
     (response) => normalizeParticipantName(response.name) === hostResponseName.value
   )
 })
+
 const canManageMeeting = computed(() => isHost.value && hostHasSubmitted.value)
-const showHostSubmissionPrompt = computed(() => isHost.value && !hostHasSubmitted.value && !isConfirmed.value)
+const showHostSubmissionPrompt = computed(
+  () => isHost.value && !hostHasSubmitted.value && !isConfirmed.value
+)
 const hostModeDescription = computed(() => {
   if (hostHasSubmitted.value) {
-    return '이 기기에서 방장 권한이 확인됐어요. 아래 추천 날짜 카드에서 바로 약속을 확정할 수 있어요.'
+    return '이 기기에서 방장 권한이 확인됐어요. 아래 추천 날짜 카드에서 바로 약속 날짜를 확정할 수 있어요.'
   }
 
-  return '먼저 내 가능한 날짜를 제출하면 추천 날짜를 보고 약속을 확정할 수 있어요.'
+  return '먼저 내 가능한 날짜를 제출하면 추천 날짜를 보고 약속 날짜를 확정할 수 있어요.'
 })
 
 const conclusionTitle = computed(() => {
-  if (perfectMatchDates.value.length) return '모두가 가능한 날을 찾았어요'
-  return '모두가 가능한 날은 아직 없어요. 대신 가장 많이 가능한 날짜를 추천해드릴게요.'
+  if (perfectMatchDates.value.length) return '모두가 가능한 날짜를 찾았어요'
+  return '모두가 가능한 날은 아직 없어요. 대신 가능한 사람이 많은 날짜를 추천해 드릴게요.'
 })
 
 const conclusionDescription = computed(() => {
@@ -284,7 +311,7 @@ const conclusionDescription = computed(() => {
   }
 
   if (!topRecommendation.value) {
-    return '응답이 모이면 가장 많이 가능한 날짜를 정리해드릴게요.'
+    return '응답이 모이면 가능한 사람이 많은 날짜를 정리해 드릴게요.'
   }
 
   return `현재 가장 많이 가능한 날짜는 ${formatDisplayDate(topRecommendation.value.date)}이고, ${topRecommendation.value.count}명이 가능해요.`
@@ -365,14 +392,24 @@ function subscribeRealtime() {
     .channel(`result-${route.params.id}`)
     .on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'responses', filter: `meeting_id=eq.${route.params.id}` },
+      {
+        event: '*',
+        schema: 'public',
+        table: 'responses',
+        filter: `meeting_id=eq.${route.params.id}`,
+      },
       () => {
         store.fetchResponses(route.params.id)
       }
     )
     .on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'meetings', filter: `id=eq.${route.params.id}` },
+      {
+        event: '*',
+        schema: 'public',
+        table: 'meetings',
+        filter: `id=eq.${route.params.id}`,
+      },
       () => {
         store.fetchMeeting(route.params.id)
       }
@@ -397,7 +434,10 @@ async function confirmDate(date) {
     showToast(`${formatDisplayDate(date)}로 약속 날짜를 확정했어요.`)
   } catch (error) {
     console.error('[WHENSDAY] failed to confirm meeting', error)
-    showToast(error?.message || '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.', 'error')
+    showToast(
+      error?.message || '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.',
+      'error'
+    )
   } finally {
     confirmingDate.value = ''
   }
@@ -414,10 +454,13 @@ async function recoverHostAccess() {
     storedHostToken.value = hostToken
     showHostRecovery.value = false
     hostCodeInput.value = ''
-    showToast('방장 권한이 복구됐어요.')
+    showToast('방장 권한을 복구했어요.')
   } catch (error) {
     console.error('[WHENSDAY] failed to recover host access', error)
-    showToast(error?.message || '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.', 'error')
+    showToast(
+      error?.message || '요청 처리 중 문제가 발생했어요. 잠시 후 다시 시도해 주세요.',
+      'error'
+    )
   } finally {
     recoveringHost.value = false
   }
@@ -433,23 +476,6 @@ function openGoogleCalendar() {
   })
 
   window.open(url, '_blank', 'noopener')
-}
-
-function downloadCalendarFile() {
-  if (!store.meeting?.confirmed_date) return
-
-  try {
-    downloadIcsFile({
-      title: store.meeting.title,
-      date: store.meeting.confirmed_date,
-      description: calendarDescription.value,
-      fileName: `${store.meeting.title || 'whensday-meeting'}.ics`,
-    })
-    showToast('캘린더 파일을 다운로드했어요.')
-  } catch (error) {
-    console.error('[WHENSDAY] failed to create ics file', error)
-    showToast('캘린더 파일을 만들지 못했어요. 잠시 후 다시 시도해 주세요.', 'error')
-  }
 }
 
 function showToast(message, type = 'success') {
