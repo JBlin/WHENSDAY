@@ -151,7 +151,7 @@
             >
               <div class="flex items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                  <p class="text-sm font-semibold text-gray-900">{{ response.name }}</p>
+                  <span class="text-sm font-semibold text-gray-900">{{ response.name }}</span>
                   <span
                     v-if="response.is_host"
                     class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700"

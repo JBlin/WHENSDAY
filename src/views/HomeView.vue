@@ -1,7 +1,10 @@
 <template>
   <div class="min-h-screen bg-gradient-to-b from-primary-light to-white flex flex-col">
     <div class="flex flex-col items-center px-6 pb-10 pt-20">
-      <h1 class="font-brand text-4xl font-black tracking-widest text-primary uppercase">WHENSDAY</h1>
+      <div class="flex items-start">
+        <h1 class="font-brand text-4xl font-black tracking-widest text-primary uppercase">WHENSDAY</h1>
+        <img src="../img/calendar.svg" class="ml-1.5 h-9 w-9 -mt-1" alt="" />
+      </div>
       <p class="mt-2 text-sm font-medium text-gray-500 tracking-wider">우리 진짜 언제 볼까?</p>
     </div>
 
