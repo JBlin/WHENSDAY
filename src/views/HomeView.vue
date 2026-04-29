@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gradient-to-b from-primary-light to-white flex flex-col">
+  <div class="min-h-screen flex flex-col" style="background: linear-gradient(160deg, #ede9fe 0%, #e0e7ff 45%, #f8f8ff 100%)">
     <div class="px-5 pt-5">
       <div class="flex items-center gap-1">
         <span class="font-brand text-base font-black tracking-widest text-primary uppercase">WHENSDAY</span>
@@ -8,10 +8,10 @@
     </div>
 
     <div class="flex flex-col items-center px-6 pb-10 pt-10 text-center">
-      <p class="font-brand text-4xl font-black text-primary leading-tight tracking-tight">
+      <p class="font-brand text-4xl font-black text-[#4338ca] leading-tight tracking-tight">
         우리 진짜 언제 볼까?
       </p>
-      <p class="mt-3 text-sm text-gray-500 leading-relaxed">
+      <p class="mt-3 text-sm text-gray-500 leading-[1.4]">
         서로의 시간을 모아,<br />가장 좋은 하루를 정해보세요💙
       </p>
     </div>
