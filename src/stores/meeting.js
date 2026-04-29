@@ -66,6 +66,10 @@ function pickNullableRegionText(...values) {
   return normalized || null
 }
 
+function isSameNullableText(left, right) {
+  return pickNullableRegionText(left) === pickNullableRegionText(right)
+}
+
 function buildRegionDebugSnapshot(recordOrMeeting) {
   if (!recordOrMeeting) return null
 
@@ -87,6 +91,21 @@ function buildRegionDebugSnapshot(recordOrMeeting) {
         }
       : null,
   }
+}
+
+function doesMeetingRegionMatch(record, regionPayload = {}) {
+  if (!record) return false
+
+  return (
+    isSameNullableText(record.region_name, regionPayload.region_name) &&
+    isSameNullableText(record.weather_region_code, regionPayload.weather_region_code) &&
+    isSameNullableText(
+      record.temperature_region_code,
+      regionPayload.temperature_region_code
+    ) &&
+    isSameNullableText(record.fishing_place_name, regionPayload.fishing_place_name) &&
+    isSameNullableText(record.fishing_gubun, regionPayload.fishing_gubun)
+  )
 }
 
 function normalizeMeetingRecord(data) {
@@ -172,6 +191,15 @@ async function selectMeetingRecord(id) {
   if (err) throw err
 
   return data
+}
+
+async function updateMeetingRegionRecord(id, regionPayload) {
+  const { error: err } = await supabase
+    .from('meetings')
+    .update(regionPayload)
+    .eq('id', id)
+
+  if (err) throw err
 }
 
 function createMeetingInsertPayload(baseMeeting, hostCode) {
@@ -292,8 +320,21 @@ export const useMeetingStore = defineStore('meeting', () => {
 
     try {
       await insertMeetingRecord(payload)
-      const insertedRecord = await selectMeetingRecord(baseMeeting.id)
+      let insertedRecord = await selectMeetingRecord(baseMeeting.id)
       console.log('[Whensday] createMeeting inserted row:', buildRegionDebugSnapshot(insertedRecord))
+
+      if (!doesMeetingRegionMatch(insertedRecord, regionPayload)) {
+        console.warn('[Whensday] createMeeting region mismatch detected. repairing row...', {
+          expected: regionPayload,
+          actual: buildRegionDebugSnapshot(insertedRecord),
+        })
+        await updateMeetingRegionRecord(baseMeeting.id, regionPayload)
+        insertedRecord = await selectMeetingRecord(baseMeeting.id)
+        console.log(
+          '[Whensday] createMeeting repaired row:',
+          buildRegionDebugSnapshot(insertedRecord)
+        )
+      }
 
       const normalizedMeeting = normalizeMeetingRecord(insertedRecord)
       console.log(

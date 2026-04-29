@@ -51,8 +51,8 @@
             </button>
           </div>
 
-          <p v-if="selectedRegion" class="mt-2 text-xs font-semibold text-primary/80">
-            약속 지역 · {{ selectedRegion.name }}
+          <p v-if="resolvedRegion" class="mt-2 text-xs font-semibold text-primary/80">
+            약속 지역 · {{ resolvedRegion.name }}
           </p>
 
           <div
@@ -239,6 +239,23 @@ const selectedRegion = computed(() =>
   selectedRegionId.value ? findRegionById(selectedRegionId.value) : null
 )
 const regionResults = computed(() => searchRegions(regionQuery.value))
+const resolvedRegion = computed(() => {
+  if (selectedRegion.value) return selectedRegion.value
+
+  const query = regionQuery.value.trim()
+  if (!query) return null
+
+  const normalizedQuery = normalizeLooseRegionText(query)
+  const exactMatch = regionResults.value.find((region) =>
+    [region.name, region.province, ...(region.aliases || [])].some(
+      (value) => normalizeLooseRegionText(value) === normalizedQuery
+    )
+  )
+
+  if (exactMatch) return exactMatch
+  if (regionResults.value.length === 1) return regionResults.value[0]
+  return null
+})
 
 const maxDate = computed(() => {
   const date = new Date()
@@ -303,8 +320,14 @@ async function create() {
     return
   }
 
-  const regionToSave = selectedRegion.value || DEFAULT_REGION
+  if (regionQuery.value.trim() && !resolvedRegion.value) {
+    errorMsg.value = '검색 결과에서 지역을 선택해 주세요.'
+    return
+  }
+
+  const regionToSave = resolvedRegion.value || DEFAULT_REGION
   console.log('[Whensday] selectedRegion:', selectedRegion.value)
+  console.log('[Whensday] resolvedRegion:', resolvedRegion.value)
 
   submitting.value = true
 
@@ -362,6 +385,13 @@ function showToast(message, type = 'success') {
   setTimeout(() => {
     toastVisible.value = false
   }, 2500)
+}
+
+function normalizeLooseRegionText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
 }
 
 const steps = [
