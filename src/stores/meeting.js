@@ -17,8 +17,8 @@ const CONFIRMED_MEETING_ERROR_MESSAGE = '이미 확정된 약속이라 더 이�
 const INVALID_HOST_CODE_ERROR_MESSAGE = '방장 코드가 맞지 않아요.'
 const HOST_RECOVERY_UNAVAILABLE_ERROR_MESSAGE =
   '이 기기에서 만든 약속이 아니라면 아직 방장 권한을 복구할 수 없어요.'
-const MEETING_REGION_SCHEMA_MISMATCH_ERROR_MESSAGE =
-  'Supabase meetings 테이블의 지역 컬럼명이 앱과 맞지 않아요. region_name, weather_region_code, temperature_region_code, fishing_place_name, fishing_gubun 컬럼을 확인해 주세요.'
+const MEETING_SCHEMA_MISMATCH_ERROR_PREFIX =
+  'Supabase meetings 테이블 컬럼이 앱과 맞지 않아요.'
 
 function createUserFacingError(message = GENERIC_REQUEST_ERROR_MESSAGE) {
   return new Error(message)
@@ -36,20 +36,16 @@ function getSupabaseErrorText(err) {
 }
 
 function hasSchemaMismatch(err, columns = []) {
-  if (!err) return false
-
-  if (err.code === 'PGRST204' || err.code === '42703') return true
-
-  const text = getSupabaseErrorText(err)
-
-  return columns.some((column) => text.includes(column.toLowerCase()) && text.includes('column'))
+  return getSchemaMismatchColumns(err, columns).length > 0
 }
 
 function getSchemaMismatchColumns(err, columns = []) {
   if (!err) return []
 
   const text = getSupabaseErrorText(err)
-  return columns.filter((column) => text.includes(column.toLowerCase()))
+  return columns.filter(
+    (column) => text.includes(column.toLowerCase()) && text.includes('column')
+  )
 }
 
 function normalizeMeetingRecord(data) {
@@ -209,6 +205,13 @@ export const useMeetingStore = defineStore('meeting', () => {
       'fishing_place_name',
       'fishing_gubun',
     ]
+    const meetingSchemaColumns = [
+      'host_token',
+      'host_code',
+      'status',
+      'confirmed_date',
+      ...regionSchemaColumns,
+    ]
     const payload = createMeetingInsertPayload(baseMeeting, hostCode)
 
     try {
@@ -218,10 +221,18 @@ export const useMeetingStore = defineStore('meeting', () => {
     } catch (err) {
       logSupabaseError('failed to create meeting', err)
 
-      if (hasSchemaMismatch(err, regionSchemaColumns)) {
-        const mismatchColumns = getSchemaMismatchColumns(err, regionSchemaColumns)
-        const mismatchLabel = mismatchColumns.length ? ` (${mismatchColumns.join(', ')})` : ''
-        throw createUserFacingError(`${MEETING_REGION_SCHEMA_MISMATCH_ERROR_MESSAGE}${mismatchLabel}`)
+      const mismatchColumns = getSchemaMismatchColumns(err, meetingSchemaColumns)
+
+      if (mismatchColumns.length) {
+        throw createUserFacingError(
+          `${MEETING_SCHEMA_MISMATCH_ERROR_PREFIX} ${mismatchColumns.join(', ')} 컬럼을 확인해 주세요.`
+        )
+      }
+
+      if (err?.code === 'PGRST204' || err?.code === '42703') {
+        throw createUserFacingError(
+          `${MEETING_SCHEMA_MISMATCH_ERROR_PREFIX} host_token, host_code, status, confirmed_date, region_name, weather_region_code, temperature_region_code, fishing_place_name, fishing_gubun 컬럼을 확인해 주세요.`
+        )
       }
 
       throw buildSupabaseError(err)
