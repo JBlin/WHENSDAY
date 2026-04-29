@@ -9,8 +9,8 @@
         <div>
           <p class="text-sm font-semibold text-gray-900">낚시지수</p>
           <p class="mt-1 text-xs text-gray-500">
-            <span v-if="regionName">{{ regionName }}의 </span>낚시 적합도와 출조 참고 정보를 확인해 보세요.
-            캘린더 날짜 아래에서는 물때를 계속 볼 수 있어요.
+            <span v-if="regionName">{{ regionName }}의 </span>낚시지수와 파고, 수온, 기온, 풍속을
+            날짜별로 확인해 보세요.
           </p>
         </div>
 
@@ -60,7 +60,7 @@
 
             <div v-if="forecastRows.length" class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                기간 내 낚시지수
+                일자별 낚시지수
               </p>
               <div class="overflow-hidden rounded-xl border border-white bg-white">
                 <div
@@ -148,6 +148,7 @@
 import { computed } from 'vue'
 import {
   FISHING_EMPTY_MESSAGE,
+  FISHING_MISSING_SUMMARY,
   formatFishingPeriodLabel,
   formatFishingSummary,
 } from '../lib/fishing.js'
@@ -162,7 +163,7 @@ const PROVIDING_LATER_MESSAGE = '제공 전'
 const FORECAST_SECONDARY_MESSAGE =
   '중기예보는 보통 4~10일 뒤 날짜부터 확인할 수 있어요.'
 const SEA_SECONDARY_MESSAGE =
-  '낚시지수와 출조 참고 정보는 API 제공 시점에 따라 일부 날짜가 비어 있을 수 있어요.'
+  '낚시지수 API 제공 시점에 따라 일부 날짜는 데이터가 없을 수 있어요.'
 
 const props = defineProps({
   selectedType: { type: String, default: '' },
@@ -214,9 +215,9 @@ const selectedDateRows = computed(() => {
           if (!dateItems.length) {
             return [
               {
-                key: `selected-${date}-pending`,
+                key: `selected-${date}-missing`,
                 dateLabel: formatForecastDate(date),
-                summary: PROVIDING_LATER_MESSAGE,
+                summary: FISHING_MISSING_SUMMARY,
                 isProvided: false,
               },
             ]

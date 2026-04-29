@@ -1,6 +1,7 @@
 import { parseLocalDate } from './meetingUtils.js'
 
-export const FISHING_EMPTY_MESSAGE = '선택한 기간에 제공되는 바다 상세 정보가 없어요.'
+export const FISHING_EMPTY_MESSAGE = '선택한 기간에 낚시지수 데이터가 없어요.'
+export const FISHING_MISSING_SUMMARY = '낚시지수 데이터 없음'
 export const SEA_UNAVAILABLE_MESSAGE =
   '이 지역은 바다 정보를 제공하지 않아요.\n바다 정보를 보려면 바다 정보가 제공되는 지역을 선택해 주세요.'
 
@@ -51,14 +52,14 @@ export function normalizeFishingPayload(payload) {
 }
 
 export function formatFishingSummary(item) {
-  if (!item) return ''
+  if (!item) return FISHING_MISSING_SUMMARY
 
-  const fishingIndex = normalizeText(item.fishingIndex) || '제공 전'
+  const fishingIndex = normalizeText(item.fishingIndex) || '데이터 없음'
   const references = [
-    formatNamedRange('풍속', item.windSpeedMin, item.windSpeedMax, 'm/s'),
     formatNamedRange('파고', item.waveMin, item.waveMax, 'm'),
     formatNamedRange('수온', item.waterTempMin, item.waterTempMax, '°'),
-    formatNamedRange('유속', item.currentSpeedMin, item.currentSpeedMax, 'kn'),
+    formatNamedRange('기온', item.airTempMin, item.airTempMax, '°'),
+    formatNamedRange('풍속', item.windSpeedMin, item.windSpeedMax, 'm/s'),
   ].filter(Boolean)
 
   return [`낚시지수 ${fishingIndex}`, ...references].join(' / ')
@@ -95,11 +96,11 @@ function formatRange(min, max, unit) {
     return `${maxLabel}${unit}`
   }
 
-  return '제공 전'
+  return '데이터 없음'
 }
 
 function formatNamedRange(label, min, max, unit) {
   const range = formatRange(min, max, unit)
-  if (!range || range === '제공 전') return ''
+  if (!range || range === '데이터 없음') return ''
   return `${label} ${range}`
 }
