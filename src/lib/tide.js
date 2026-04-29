@@ -10,6 +10,7 @@ const LUNAR_DAY_FORMATTER = new Intl.DateTimeFormat('ko-KR-u-ca-chinese', {
 export function calculateTideNumberFromLunarDay(lunarDay) {
   // NOTE: Product requirement also mentions "음력 1일 = 8물" and "음력 15일 = 8물",
   // but the provided formula yields 6 for 음력 1일 and 5 for 음력 15일.
+  // TODO: Verify the requirement text against the formula with product/data owners.
   // We intentionally follow the provided formula first and leave this mismatch visible for later verification.
   return ((lunarDay + 4) % 15) + 1
 }

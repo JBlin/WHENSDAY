@@ -24,30 +24,65 @@
         <div>
           <label class="mb-1.5 block text-sm font-semibold text-gray-700">약속 지역</label>
           <p class="mb-2 text-xs text-gray-400">
-            지역을 선택하면 가능한 날짜를 고를 때 날씨와 바다 정보를 함께 볼 수 있어요.
+            지역을 입력하면 해당 지역의 날씨 정보를 함께 볼 수 있어요.
           </p>
 
-          <div
-            class="flex h-12 w-full cursor-pointer items-center gap-2 rounded-btn border border-gray-200 bg-gray-50 px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
-            @click="regionPickerVisible = true"
-          >
-            <span class="flex-1 truncate text-sm" :class="selectedRegion ? 'font-semibold text-gray-800' : 'text-gray-400'">
-              {{ selectedRegion ? selectedRegion.name : '지역명, 도시, 바다 포인트 검색' }}
-            </span>
+          <div class="relative">
+            <input
+              v-model="regionQuery"
+              type="text"
+              placeholder="도시나 지역명을 입력해 주세요"
+              class="h-12 w-full rounded-btn border border-gray-200 bg-gray-50 px-4 pr-11 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+              @input="handleRegionInput"
+              @focus="handleRegionFocus"
+              @keydown.enter.prevent
+            />
+
             <button
-              v-if="selectedRegion"
+              v-if="regionQuery || selectedRegion"
               type="button"
-              class="shrink-0 rounded-full p-0.5 text-gray-400 hover:text-gray-600"
-              @click.stop="clearRegion"
+              class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 transition hover:text-gray-600"
               aria-label="지역 선택 초기화"
+              @click="clearRegion"
             >
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                 <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
               </svg>
             </button>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-            </svg>
+          </div>
+
+          <p v-if="selectedRegion" class="mt-2 text-xs font-semibold text-primary/80">
+            약속 지역 · {{ selectedRegion.name }}
+          </p>
+
+          <div
+            v-if="showRegionResults"
+            class="mt-3 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+          >
+            <button
+              v-for="region in regionResults"
+              :key="region.id"
+              type="button"
+              class="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-gray-50"
+              :class="region.id === selectedRegionId ? 'bg-primary/[0.04]' : ''"
+              @click="handleRegionSelect(region)"
+            >
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold text-gray-900">
+                  {{ region.province }} · {{ region.name }}
+                </p>
+                <p v-if="region.supportsSeaInfo" class="mt-1 text-xs text-gray-400">
+                  바다 정보 제공
+                </p>
+              </div>
+            </button>
+
+            <p
+              v-if="!regionResults.length"
+              class="px-4 py-4 text-center text-sm text-gray-500"
+            >
+              검색 결과가 없어요.
+            </p>
           </div>
         </div>
 
@@ -162,15 +197,6 @@
     @update:end-date="dateTo = $event"
   />
 
-  <RegionPickerSheet
-    :open="regionPickerVisible"
-    :selected-region-id="selectedRegionId"
-    :favorite-region-ids="favoriteRegionIds"
-    @update:open="regionPickerVisible = $event"
-    @select="handleRegionSelect"
-    @toggle-favorite="handleFavoriteToggle"
-  />
-
   <ToastMessage :visible="toastVisible" :message="toastMsg" :type="toastType" />
 </template>
 
@@ -178,10 +204,8 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import DateRangeSheet from '../components/DateRangeSheet.vue'
-import RegionPickerSheet from '../components/RegionPickerSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
-import { DEFAULT_REGION, findRegionById } from '../data/regions.js'
-import { getFavoriteRegionIds, toggleFavoriteRegion } from '../lib/favoriteRegions.js'
+import { DEFAULT_REGION, findRegionById, searchRegions } from '../data/regions.js'
 import { storeHostToken } from '../lib/hostAccess.js'
 import { formatDisplayDate, formatLocalDate, rangeDayCount } from '../lib/meetingUtils.js'
 import { buildKakaoShareText, buildMeetingUrl, copyText } from '../lib/share.js'
@@ -193,12 +217,12 @@ const store = useMeetingStore()
 const title = ref('')
 const dateFrom = ref('')
 const dateTo = ref('')
+const regionQuery = ref('')
 const submitting = ref(false)
 const errorMsg = ref('')
 const rangePickerVisible = ref(false)
-const regionPickerVisible = ref(false)
 const selectedRegionId = ref(null)
-const favoriteRegionIds = ref(getFavoriteRegionIds())
+const showRegionResults = ref(false)
 
 const shareVisible = ref(false)
 const shareUrl = ref('')
@@ -214,6 +238,7 @@ const today = formatLocalDate(new Date())
 const selectedRegion = computed(() =>
   selectedRegionId.value ? findRegionById(selectedRegionId.value) : null
 )
+const regionResults = computed(() => searchRegions(regionQuery.value))
 
 const maxDate = computed(() => {
   const date = new Date()
@@ -232,6 +257,33 @@ const dateRangeHint = computed(() => {
   if (!hasDateRange.value) return '달력을 열어서 범위를 고르고 완료하면 돼요.'
   return `${rangeDayCount(dateFrom.value, dateTo.value)}일 범위가 선택됐어요.`
 })
+
+function handleRegionInput() {
+  const trimmedQuery = regionQuery.value.trim()
+  showRegionResults.value = trimmedQuery.length > 0
+
+  if (selectedRegion.value && trimmedQuery !== selectedRegion.value.name) {
+    selectedRegionId.value = null
+  }
+}
+
+function handleRegionFocus() {
+  if (regionQuery.value.trim()) {
+    showRegionResults.value = true
+  }
+}
+
+function handleRegionSelect(region) {
+  selectedRegionId.value = region.id
+  regionQuery.value = region.name
+  showRegionResults.value = false
+}
+
+function clearRegion() {
+  selectedRegionId.value = null
+  regionQuery.value = ''
+  showRegionResults.value = false
+}
 
 async function create() {
   errorMsg.value = ''
@@ -252,7 +304,7 @@ async function create() {
   }
 
   const regionToSave = selectedRegion.value || DEFAULT_REGION
-  console.log('[Whensday] selectedRegion before create:', selectedRegion.value)
+  console.log('[Whensday] selectedRegion:', selectedRegion.value)
 
   submitting.value = true
 
@@ -297,18 +349,6 @@ async function copyShareText() {
 
 function closeShareSheet() {
   shareVisible.value = false
-}
-
-function clearRegion() {
-  selectedRegionId.value = null
-}
-
-function handleRegionSelect(regionId) {
-  selectedRegionId.value = regionId
-}
-
-function handleFavoriteToggle(regionId) {
-  favoriteRegionIds.value = toggleFavoriteRegion(regionId)
 }
 
 function goToMeeting() {

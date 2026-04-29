@@ -113,8 +113,7 @@
             :tide-rows="visibleTideRows"
             :show-tide-limit-message="showTideLimitMessage"
             :sea-available="seaAvailable"
-            :fishing-gubun="store.meeting?.fishing_gubun || ''"
-            :fishing-place-name="store.meeting?.fishing_place_name || ''"
+            :region-name="meetingRegionName"
           />
         </div>
       </div>

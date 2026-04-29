@@ -43,7 +43,7 @@
         >
           이 지역은 바다 정보를 제공하지 않아요.
           <br />
-          바다 정보를 보려면 약속 지역을 바다 포인트로 선택해 주세요.
+          바다 정보를 보려면 바다 정보가 제공되는 지역을 선택해 주세요.
         </div>
 
         <template v-else>
@@ -184,8 +184,7 @@ const props = defineProps({
   tideRows: { type: Array, default: () => [] },
   showTideLimitMessage: { type: Boolean, default: false },
   seaAvailable: { type: Boolean, default: true },
-  fishingGubun: { type: String, default: '' },
-  fishingPlaceName: { type: String, default: '' },
+  regionName: { type: String, default: '' },
 })
 
 const infoTitle = computed(() => {
@@ -193,7 +192,7 @@ const infoTitle = computed(() => {
   return typeLabel ? `${typeLabel} 정보` : '참고 정보'
 })
 
-const seaDetailTitle = computed(() => formatFishingDetailTitle(props.fishingGubun, props.fishingPlaceName))
+const seaDetailTitle = computed(() => formatFishingDetailTitle(props.regionName))
 
 const tideRowsWithLast = computed(() =>
   props.tideRows.map((row, index) => ({

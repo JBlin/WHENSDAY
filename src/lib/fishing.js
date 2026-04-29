@@ -2,7 +2,7 @@ import { parseLocalDate } from './meetingUtils.js'
 
 export const FISHING_EMPTY_MESSAGE = '선택한 기간에 제공되는 바다 상세 정보가 없어요.'
 export const SEA_UNAVAILABLE_MESSAGE =
-  '이 지역은 바다 정보를 제공하지 않아요.\n바다 정보를 보려면 약속 지역을 바다 포인트로 선택해 주세요.'
+  '이 지역은 바다 정보를 제공하지 않아요.\n바다 정보를 보려면 바다 정보가 제공되는 지역을 선택해 주세요.'
 
 export async function fetchFishingForecast(options) {
   const { placeName, gubun } = options || {}
@@ -50,8 +50,8 @@ export function normalizeFishingPayload(payload) {
   }
 }
 
-export function formatFishingDetailTitle(gubun, placeName) {
-  return ['바다 상세 정보', gubun, placeName].filter(Boolean).join(' · ')
+export function formatFishingDetailTitle(regionName) {
+  return regionName ? `바다 상세 정보 · ${regionName}` : '바다 상세 정보'
 }
 
 export function formatFishingSummary(item) {
@@ -63,13 +63,7 @@ export function formatFishingSummary(item) {
   const windSpeed = formatRange(item.windSpeedMin, item.windSpeedMax, 'm/s')
   const waveHeight = formatRange(item.waveMin, item.waveMax, 'm')
 
-  return [
-    `낚시지수 ${fishingIndex}`,
-    `수온 ${waterTemp}`,
-    `유속 ${currentSpeed}`,
-    `풍속 ${windSpeed}`,
-    `파고 ${waveHeight}`,
-  ].join(' · ')
+  return [fishingIndex, `수온 ${waterTemp}`, `유속 ${currentSpeed}`, `풍속 ${windSpeed}`, `파고 ${waveHeight}`].join(' · ')
 }
 
 export function formatFishingPeriodLabel(period, periodLabel = '') {

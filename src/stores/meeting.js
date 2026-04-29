@@ -172,17 +172,26 @@ export const useMeetingStore = defineStore('meeting', () => {
   async function createMeeting(title, dateFrom, dateTo, region = DEFAULT_REGION) {
     assertSupabaseConfigured()
 
-    const regionFields = buildRegionMeetingFields(region)
-    console.log('[Whensday] createMeeting regionFields:', regionFields)
+    const regionPayload = buildRegionMeetingFields(region)
+    console.log('[Whensday] createMeeting region payload:', regionPayload)
+
     const baseMeeting = {
       id: crypto.randomUUID(),
       title,
       date_from: dateFrom,
       date_to: dateTo,
       host_token: crypto.randomUUID(),
-      ...regionFields,
+      ...regionPayload,
     }
     const hostCode = createHostCode()
+    const regionSchemaColumns = [
+      'region_name',
+      'weather_region_code',
+      'temperature_region_code',
+      'sea_area_code',
+      'fishing_place_name',
+      'fishing_gubun',
+    ]
     const attempts = [
       {
         payload: {
@@ -191,23 +200,28 @@ export const useMeetingStore = defineStore('meeting', () => {
           status: 'open',
           confirmed_date: null,
         },
-        result: {
+        schemaColumns: ['host_code', 'status', 'confirmed_date', ...regionSchemaColumns],
+      },
+      {
+        payload: {
           ...baseMeeting,
-          host_code: hostCode,
           status: 'open',
           confirmed_date: null,
         },
-        schemaColumns: [
-          'host_code',
-          'status',
-          'confirmed_date',
-          'region_name',
-          'weather_region_code',
-          'temperature_region_code',
-          'sea_area_code',
-          'fishing_place_name',
-          'fishing_gubun',
-        ],
+        schemaColumns: ['status', 'confirmed_date', ...regionSchemaColumns],
+      },
+      {
+        payload: {
+          ...baseMeeting,
+          host_code: hostCode,
+        },
+        schemaColumns: ['host_code', ...regionSchemaColumns],
+      },
+      {
+        payload: {
+          ...baseMeeting,
+        },
+        schemaColumns: [...regionSchemaColumns],
       },
       {
         payload: {
@@ -216,12 +230,6 @@ export const useMeetingStore = defineStore('meeting', () => {
           date_from: baseMeeting.date_from,
           date_to: baseMeeting.date_to,
           host_token: baseMeeting.host_token,
-          host_code: hostCode,
-          status: 'open',
-          confirmed_date: null,
-        },
-        result: {
-          ...baseMeeting,
           host_code: hostCode,
           status: 'open',
           confirmed_date: null,
@@ -230,40 +238,11 @@ export const useMeetingStore = defineStore('meeting', () => {
       },
       {
         payload: {
-          ...baseMeeting,
-          status: 'open',
-          confirmed_date: null,
-        },
-        result: {
-          ...baseMeeting,
-          host_code: '',
-          status: 'open',
-          confirmed_date: null,
-        },
-        schemaColumns: [
-          'status',
-          'confirmed_date',
-          'region_name',
-          'weather_region_code',
-          'temperature_region_code',
-          'sea_area_code',
-          'fishing_place_name',
-          'fishing_gubun',
-        ],
-      },
-      {
-        payload: {
           id: baseMeeting.id,
           title: baseMeeting.title,
           date_from: baseMeeting.date_from,
           date_to: baseMeeting.date_to,
           host_token: baseMeeting.host_token,
-          status: 'open',
-          confirmed_date: null,
-        },
-        result: {
-          ...baseMeeting,
-          host_code: '',
           status: 'open',
           confirmed_date: null,
         },
@@ -271,23 +250,14 @@ export const useMeetingStore = defineStore('meeting', () => {
       },
       {
         payload: {
-          ...baseMeeting,
+          id: baseMeeting.id,
+          title: baseMeeting.title,
+          date_from: baseMeeting.date_from,
+          date_to: baseMeeting.date_to,
+          host_token: baseMeeting.host_token,
+          host_code: hostCode,
         },
-        result: {
-          ...baseMeeting,
-          host_code: '',
-          status: 'open',
-          confirmed_date: null,
-        },
-        schemaColumns: [
-          'host_token',
-          'region_name',
-          'weather_region_code',
-          'temperature_region_code',
-          'sea_area_code',
-          'fishing_place_name',
-          'fishing_gubun',
-        ],
+        schemaColumns: ['host_code'],
       },
       {
         payload: {
@@ -296,12 +266,6 @@ export const useMeetingStore = defineStore('meeting', () => {
           date_from: baseMeeting.date_from,
           date_to: baseMeeting.date_to,
           host_token: baseMeeting.host_token,
-        },
-        result: {
-          ...baseMeeting,
-          host_code: '',
-          status: 'open',
-          confirmed_date: null,
         },
         schemaColumns: ['host_token'],
       },
@@ -312,12 +276,6 @@ export const useMeetingStore = defineStore('meeting', () => {
           date_from: baseMeeting.date_from,
           date_to: baseMeeting.date_to,
         },
-        result: {
-          ...baseMeeting,
-          host_code: '',
-          status: 'open',
-          confirmed_date: null,
-        },
         schemaColumns: [],
       },
     ]
@@ -327,9 +285,20 @@ export const useMeetingStore = defineStore('meeting', () => {
         const attempt = attempts[index]
 
         try {
-          console.log('[Whensday] createMeeting payload (attempt', index + 1, '):', attempt.payload)
           await insertMeetingRecord(attempt.payload)
-          return normalizeMeetingRecord(attempt.result)
+
+          try {
+            const insertedRecord = await selectMeetingRecord(baseMeeting.id)
+            return normalizeMeetingRecord(insertedRecord)
+          } catch (readError) {
+            logCompatibilityFallback('meeting read after insert fallback', readError)
+            return normalizeMeetingRecord({
+              ...baseMeeting,
+              host_code: attempt.payload.host_code || '',
+              status: attempt.payload.status || 'open',
+              confirmed_date: attempt.payload.confirmed_date || null,
+            })
+          }
         } catch (err) {
           const hasNextAttempt = index < attempts.length - 1
 
@@ -341,7 +310,12 @@ export const useMeetingStore = defineStore('meeting', () => {
         }
       }
 
-      return normalizeMeetingRecord(attempts[attempts.length - 1]?.result || null)
+      return normalizeMeetingRecord({
+        ...baseMeeting,
+        host_code: '',
+        status: 'open',
+        confirmed_date: null,
+      })
     } catch (err) {
       logSupabaseError('failed to create meeting', err)
       throw buildSupabaseError(err)
