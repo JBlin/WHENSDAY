@@ -48,23 +48,86 @@ function getSchemaMismatchColumns(err, columns = []) {
   )
 }
 
+function normalizeString(value) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function pickFirstRegionText(...values) {
+  for (const value of values) {
+    const normalized = normalizeString(value)
+    if (normalized) return normalized
+  }
+
+  return ''
+}
+
+function pickNullableRegionText(...values) {
+  const normalized = pickFirstRegionText(...values)
+  return normalized || null
+}
+
+function buildRegionDebugSnapshot(recordOrMeeting) {
+  if (!recordOrMeeting) return null
+
+  return {
+    region_name: recordOrMeeting.region_name ?? null,
+    weather_region_code: recordOrMeeting.weather_region_code ?? null,
+    temperature_region_code: recordOrMeeting.temperature_region_code ?? null,
+    fishing_place_name: recordOrMeeting.fishing_place_name ?? null,
+    fishing_gubun: recordOrMeeting.fishing_gubun ?? null,
+    region: recordOrMeeting.region
+      ? {
+          id: recordOrMeeting.region.id,
+          name: recordOrMeeting.region.name,
+          province: recordOrMeeting.region.province,
+          weatherRegionCode: recordOrMeeting.region.weatherRegionCode,
+          temperatureRegionCode: recordOrMeeting.region.temperatureRegionCode,
+          fishingPlaceName: recordOrMeeting.region.fishingPlaceName,
+          fishingGubun: recordOrMeeting.region.fishingGubun,
+        }
+      : null,
+  }
+}
+
 function normalizeMeetingRecord(data) {
   if (!data) return null
 
   const region = getRegionFromMeetingRecord(data)
+  const regionName = pickFirstRegionText(data.region_name, region.name, DEFAULT_REGION.name)
+  const weatherRegionCode = pickFirstRegionText(
+    data.weather_region_code,
+    region.weatherRegionCode,
+    DEFAULT_REGION.weatherRegionCode
+  )
+  const temperatureRegionCode = pickFirstRegionText(
+    data.temperature_region_code,
+    region.temperatureRegionCode,
+    DEFAULT_REGION.temperatureRegionCode
+  )
+  const fishingPlaceName = pickNullableRegionText(data.fishing_place_name, region.fishingPlaceName)
+  const fishingGubun = pickNullableRegionText(data.fishing_gubun, region.fishingGubun)
+  const normalizedRegion = {
+    ...region,
+    name: regionName,
+    weatherRegionCode,
+    temperatureRegionCode,
+    fishingPlaceName,
+    fishingGubun,
+    supportsSeaInfo: Boolean(fishingPlaceName && fishingGubun),
+  }
 
   return {
     ...data,
     host_token: data.host_token || '',
     status: data.status || 'open',
     confirmed_date: data.confirmed_date || null,
-    region_name: region.name,
-    weather_region_code: region.weatherRegionCode,
-    temperature_region_code: region.temperatureRegionCode,
-    sea_area_code: region.seaAreaCode,
-    fishing_place_name: region.fishingPlaceName,
-    fishing_gubun: region.fishingGubun,
-    region,
+    region_name: regionName,
+    weather_region_code: weatherRegionCode,
+    temperature_region_code: temperatureRegionCode,
+    sea_area_code: normalizedRegion.seaAreaCode,
+    fishing_place_name: fishingPlaceName,
+    fishing_gubun: fishingGubun,
+    region: normalizedRegion,
   }
 }
 
@@ -150,8 +213,13 @@ export const useMeetingStore = defineStore('meeting', () => {
       let data
 
       data = await selectMeetingRecord(id)
+      console.log('[Whensday] fetchMeeting detail row:', buildRegionDebugSnapshot(data))
 
       meeting.value = normalizeMeetingRecord(data)
+      console.log(
+        '[Whensday] fetchMeeting normalized region:',
+        buildRegionDebugSnapshot(meeting.value)
+      )
       return meeting.value
     } catch (err) {
       logSupabaseError('failed to fetch meeting', err)
@@ -221,7 +289,15 @@ export const useMeetingStore = defineStore('meeting', () => {
     try {
       await insertMeetingRecord(payload)
       const insertedRecord = await selectMeetingRecord(baseMeeting.id)
-      return normalizeMeetingRecord(insertedRecord)
+      console.log('[Whensday] createMeeting inserted row:', buildRegionDebugSnapshot(insertedRecord))
+
+      const normalizedMeeting = normalizeMeetingRecord(insertedRecord)
+      console.log(
+        '[Whensday] createMeeting normalized region:',
+        buildRegionDebugSnapshot(normalizedMeeting)
+      )
+
+      return normalizedMeeting
     } catch (err) {
       logSupabaseError('failed to create meeting', err)
 

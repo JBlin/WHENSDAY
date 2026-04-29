@@ -188,7 +188,19 @@ const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && stor
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
 const canViewResult = computed(() => submitted.value || hasVoted.value || isConfirmed.value || isHost.value)
 // TODO: If host-side region editing is added later, keep the meeting record as the single source of truth here.
-const meetingRegionName = computed(() => store.meeting?.region_name || DEFAULT_REGION.name)
+const meetingRegionName = computed(() => {
+  const explicitName = typeof store.meeting?.region_name === 'string'
+    ? store.meeting.region_name.trim()
+    : ''
+  if (explicitName) return explicitName
+
+  const normalizedName = typeof store.meeting?.region?.name === 'string'
+    ? store.meeting.region.name.trim()
+    : ''
+  if (normalizedName) return normalizedName
+
+  return DEFAULT_REGION.name
+})
 const seaAvailable = computed(() =>
   Boolean(store.meeting?.fishing_place_name && store.meeting?.fishing_gubun)
 )

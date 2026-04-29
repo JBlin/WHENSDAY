@@ -27,6 +27,10 @@ function normalizeSearchText(value) {
     .replace(/\s+/g, '')
 }
 
+function hasRegionText(value) {
+  return typeof value === 'string' ? value.trim().length > 0 : false
+}
+
 function getRegionSearchScore(region, keyword) {
   const name = normalizeSearchText(region.name)
   const province = normalizeSearchText(region.province)
@@ -1183,33 +1187,65 @@ export function buildRegionRecord(regionOrId) {
 export function getRegionFromMeetingRecord(record) {
   if (!record) return buildRegionRecord(DEFAULT_REGION)
 
+  const regionName = hasRegionText(record.region_name) ? record.region_name.trim() : ''
+  const weatherRegionCode = hasRegionText(record.weather_region_code)
+    ? record.weather_region_code.trim()
+    : ''
+  const temperatureRegionCode = hasRegionText(record.temperature_region_code)
+    ? record.temperature_region_code.trim()
+    : ''
+  const fishingPlaceName = hasRegionText(record.fishing_place_name)
+    ? record.fishing_place_name.trim()
+    : ''
+
   const matchedRegion =
     REGIONS.find((region) => {
-      if (record.fishing_place_name && region.fishingPlaceName === record.fishing_place_name) {
+      if (fishingPlaceName && region.fishingPlaceName === fishingPlaceName) {
         return true
       }
 
       return (
-        region.name === record.region_name &&
-        region.weatherRegionCode === record.weather_region_code &&
-        region.temperatureRegionCode === record.temperature_region_code
+        regionName &&
+        region.name === regionName &&
+        weatherRegionCode &&
+        temperatureRegionCode &&
+        region.weatherRegionCode === weatherRegionCode &&
+        region.temperatureRegionCode === temperatureRegionCode
       )
-    }) || null
+    }) ||
+    REGIONS.find((region) => {
+      if (!regionName || region.name !== regionName) return false
+      if (weatherRegionCode && region.weatherRegionCode !== weatherRegionCode) return false
+      if (temperatureRegionCode && region.temperatureRegionCode !== temperatureRegionCode) {
+        return false
+      }
+
+      return true
+    }) ||
+    REGIONS.find((region) => {
+      return (
+        weatherRegionCode &&
+        temperatureRegionCode &&
+        region.weatherRegionCode === weatherRegionCode &&
+        region.temperatureRegionCode === temperatureRegionCode
+      )
+    }) ||
+    null
 
   if (matchedRegion) {
     return buildRegionRecord(matchedRegion)
   }
 
   return {
-    id: DEFAULT_REGION.id,
-    name: record.region_name || DEFAULT_REGION.name,
-    province: DEFAULT_REGION.province,
+    id: regionName ? `custom-${normalizeSearchText(regionName)}` : DEFAULT_REGION.id,
+    name: regionName || DEFAULT_REGION.name,
+    province: '',
     aliases: [],
-    weatherRegionCode: record.weather_region_code || DEFAULT_REGION.weatherRegionCode,
-    temperatureRegionCode: record.temperature_region_code || DEFAULT_REGION.temperatureRegionCode,
-    fishingPlaceName: record.fishing_place_name || null,
+    weatherRegionCode: weatherRegionCode || null,
+    temperatureRegionCode: temperatureRegionCode || null,
+    fishingPlaceName: fishingPlaceName || null,
     fishingGubun: record.fishing_gubun || null,
-    supportsSeaInfo: Boolean(record.fishing_place_name && record.fishing_gubun),
+    supportsSeaInfo: Boolean(fishingPlaceName && record.fishing_gubun),
     codeNote: '',
     seaAreaCode: null,
   }
