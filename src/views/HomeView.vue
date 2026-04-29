@@ -1,15 +1,15 @@
 <template>
   <div class="min-h-screen bg-gradient-to-b from-primary-light to-white flex flex-col">
     <div class="px-5 pt-5">
-      <div class="flex items-center gap-1.5">
-        <span class="font-brand text-lg font-black tracking-widest text-primary uppercase">WHENSDAY</span>
-        <img src="../img/calendar.svg" class="h-5 w-5" alt="" />
+      <div class="flex items-center gap-1">
+        <span class="font-brand text-base font-black tracking-widest text-primary uppercase">WHENSDAY</span>
+        <img src="../img/calendar.svg" class="h-4 w-4" alt="" />
       </div>
     </div>
 
-    <div class="flex flex-col px-6 pb-10 pt-10">
+    <div class="flex flex-col items-center px-6 pb-10 pt-10 text-center">
       <p class="font-brand text-4xl font-black text-primary leading-tight tracking-tight">
-        우리 진짜<br />언제 볼까?
+        우리 진짜 언제 볼까?
       </p>
       <p class="mt-3 text-sm text-gray-500 leading-relaxed">
         서로의 시간을 모아,<br />가장 좋은 하루를 정해보세요💙
