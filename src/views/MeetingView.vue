@@ -204,6 +204,9 @@ const meetingRegionName = computed(() => {
 const seaAvailable = computed(() =>
   Boolean(store.meeting?.fishing_place_name && store.meeting?.fishing_gubun)
 )
+const meetingSeaAreaCode = computed(
+  () => store.meeting?.region?.seaAreaCode || store.meeting?.sea_area_code || null
+)
 const seaUnavailableMessage = SEA_UNAVAILABLE_MESSAGE
 const visibleForecastItems = computed(() =>
   filterForecastItemsByRange(forecastItems.value, store.meeting?.date_from, store.meeting?.date_to)
@@ -217,7 +220,11 @@ const tideRangeSupported = computed(() =>
 const visibleTideRows = computed(() => {
   if (selectedInfoType.value !== 'sea' || !seaAvailable.value || !tideRangeSupported.value) return []
 
-  return buildTideTable(store.meeting?.date_from, store.meeting?.date_to).map((row) => ({
+  return buildTideTable(
+    store.meeting?.date_from,
+    store.meeting?.date_to,
+    meetingSeaAreaCode.value
+  ).map((row) => ({
     ...row,
     dateLabel: formatForecastDate(row.date),
   }))

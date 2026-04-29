@@ -1,68 +1,113 @@
 import { addDays, formatLocalDate, parseLocalDate, rangeDayCount } from './meetingUtils.js'
 
-const LUNAR_DAY_FORMATTER = new Intl.DateTimeFormat('ko-KR-u-ca-chinese', {
-  day: 'numeric',
-  month: 'numeric',
-  year: 'numeric',
-  timeZone: 'Asia/Seoul',
-})
+export const TIDE_BASE_DATE = '2026-04-29'
 
-export function calculateTideNumberFromLunarDay(lunarDay) {
-  // NOTE: Product requirement also mentions "음력 1일 = 8물" and "음력 15일 = 8물",
-  // but the provided formula yields 6 for 음력 1일 and 5 for 음력 15일.
-  // TODO: Verify the requirement text against the formula with product/data owners.
-  // We intentionally follow the provided formula first and leave this mismatch visible for later verification.
-  return ((lunarDay + 4) % 15) + 1
+const WEST_TIDE_CYCLE = [...Array.from({ length: 13 }, (_, index) => `${index + 1}물`), '조금', '무시']
+const SOUTH_EAST_TIDE_CYCLE = [
+  ...Array.from({ length: 14 }, (_, index) => `${index + 1}물`),
+  '조금',
+]
+
+export const TIDE_AREA_CONFIG = {
+  west: {
+    areaCode: 'west',
+    baseDate: TIDE_BASE_DATE,
+    startLabel: '4물',
+    cycle: WEST_TIDE_CYCLE,
+  },
+  south: {
+    areaCode: 'south',
+    baseDate: TIDE_BASE_DATE,
+    startLabel: '5물',
+    cycle: SOUTH_EAST_TIDE_CYCLE,
+  },
+  east: {
+    areaCode: 'east',
+    baseDate: TIDE_BASE_DATE,
+    startLabel: '5물',
+    cycle: SOUTH_EAST_TIDE_CYCLE,
+  },
+}
+
+function positiveModulo(value, divisor) {
+  return ((value % divisor) + divisor) % divisor
+}
+
+function parseTideNumber(label) {
+  if (typeof label !== 'string' || !label.endsWith('물')) return null
+
+  const value = Number(label.replace('물', ''))
+  return Number.isFinite(value) ? value : null
 }
 
 export function formatTideNumber(tideNumber) {
   return `${tideNumber}물`
 }
 
-export function getLunarDayFromSolarDate(dateStr) {
-  if (!dateStr) return null
-
-  const date = new Date(`${dateStr}T12:00:00+09:00`)
-  const dayPart = LUNAR_DAY_FORMATTER.formatToParts(date).find((part) => part.type === 'day')
-  const lunarDay = Number(dayPart?.value || '')
-
-  return Number.isFinite(lunarDay) ? lunarDay : null
+export function getTideAreaConfig(seaAreaCode) {
+  return TIDE_AREA_CONFIG[seaAreaCode] || null
 }
 
-export function getTideInfo(dateStr) {
-  const lunarDay = getLunarDayFromSolarDate(dateStr)
+export function getTideCycleLabels(seaAreaCode) {
+  const config = getTideAreaConfig(seaAreaCode)
+  return config ? [...config.cycle] : []
+}
 
-  if (!Number.isFinite(lunarDay)) {
+export function getTideDayOffset(dateStr, baseDate = TIDE_BASE_DATE) {
+  if (!dateStr || !baseDate) return null
+
+  const target = parseLocalDate(dateStr)
+  const anchor = parseLocalDate(baseDate)
+  return Math.round((target - anchor) / 86400000)
+}
+
+export function getTideLabelByOffset(seaAreaCode, dayOffset) {
+  const config = getTideAreaConfig(seaAreaCode)
+  if (!config || !Number.isFinite(dayOffset)) return ''
+
+  const startIndex = config.cycle.indexOf(config.startLabel)
+  if (startIndex < 0 || !config.cycle.length) return ''
+
+  return config.cycle[positiveModulo(startIndex + dayOffset, config.cycle.length)] || ''
+}
+
+export function getTideInfo(dateStr, seaAreaCode) {
+  const config = getTideAreaConfig(seaAreaCode)
+  if (!config || !dateStr) {
     return {
       date: dateStr,
-      lunarDay: null,
+      seaAreaCode: seaAreaCode || null,
+      baseDate: config?.baseDate || TIDE_BASE_DATE,
+      dayOffset: null,
       tideNumber: null,
       tideLabel: '',
     }
   }
 
-  const tideNumber = calculateTideNumberFromLunarDay(lunarDay)
+  const dayOffset = getTideDayOffset(dateStr, config.baseDate)
+  const tideLabel = getTideLabelByOffset(seaAreaCode, dayOffset)
 
   return {
     date: dateStr,
-    lunarDay,
-    tideNumber,
-    tideLabel: formatTideNumber(tideNumber),
+    seaAreaCode: config.areaCode,
+    baseDate: config.baseDate,
+    dayOffset,
+    tideNumber: parseTideNumber(tideLabel),
+    tideLabel,
   }
 }
 
-export function buildTideTable(dateFrom, dateTo) {
-  if (!dateFrom || !dateTo) return []
+export function buildTideTable(dateFrom, dateTo, seaAreaCode) {
+  if (!dateFrom || !dateTo || !seaAreaCode) return []
 
   const totalDays = rangeDayCount(dateFrom, dateTo)
-
   if (!Number.isFinite(totalDays) || totalDays <= 0) return []
 
   const rows = []
 
   for (let offset = 0; offset < totalDays; offset += 1) {
     const date = offset === 0 ? dateFrom : addDays(dateFrom, offset)
-    rows.push(getTideInfo(date))
+    rows.push(getTideInfo(date, seaAreaCode))
   }
 
   return rows
@@ -81,8 +126,8 @@ export function isTideRangeSupported(dateFrom, dateTo, maxDays = 60) {
   return rangeDayCount(dateFrom, dateTo) <= maxDays
 }
 
-export function toTideTableRow(dateStr) {
-  const tide = getTideInfo(dateStr)
+export function toTideTableRow(dateStr, seaAreaCode) {
+  const tide = getTideInfo(dateStr, seaAreaCode)
   return {
     ...tide,
     date: formatLocalDate(parseLocalDate(dateStr)),

@@ -122,6 +122,19 @@ npm run dev
 
 `npm run dev`는 이제 로컬 `node_modules/vite`가 있으면 그대로 실행하고, 없으면 Windows에서 `.\dev.ps1` 우회 경로를 자동으로 사용합니다.
 
+## 커밋/푸시 자동화
+
+커밋 메시지만 넣으면 빌드 확인 뒤 `git add`, `commit`, `push`까지 한 번에 실행할 수 있습니다.
+
+```powershell
+npm run sync -- "Add regional tide cycles"
+```
+
+- 이미 staged 된 변경이 있으면 그 변경만 커밋합니다.
+- staged 된 변경이 없으면 `git add -A`로 전체 변경을 스테이징합니다.
+- 빌드를 건너뛰려면 `npm run sync -- --skip-build "Commit message"`를 사용합니다.
+- push 없이 커밋까지만 하려면 `npm run sync -- --no-push "Commit message"`를 사용합니다.
+
 ## 배포
 
 Vercel 배포 시 아래 환경 변수를 추가하세요.
