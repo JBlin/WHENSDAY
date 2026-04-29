@@ -17,6 +17,8 @@ const CONFIRMED_MEETING_ERROR_MESSAGE = '이미 확정된 약속이라 더 이�
 const INVALID_HOST_CODE_ERROR_MESSAGE = '방장 코드가 맞지 않아요.'
 const HOST_RECOVERY_UNAVAILABLE_ERROR_MESSAGE =
   '이 기기에서 만든 약속이 아니라면 아직 방장 권한을 복구할 수 없어요.'
+const MEETING_REGION_SCHEMA_MISMATCH_ERROR_MESSAGE =
+  'Supabase meetings 테이블의 지역 컬럼명이 앱과 맞지 않아요. region_name, weather_region_code, temperature_region_code, fishing_place_name, fishing_gubun 컬럼을 확인해 주세요.'
 
 function createUserFacingError(message = GENERIC_REQUEST_ERROR_MESSAGE) {
   return new Error(message)
@@ -41,6 +43,13 @@ function hasSchemaMismatch(err, columns = []) {
   const text = getSupabaseErrorText(err)
 
   return columns.some((column) => text.includes(column.toLowerCase()) && text.includes('column'))
+}
+
+function getSchemaMismatchColumns(err, columns = []) {
+  if (!err) return []
+
+  const text = getSupabaseErrorText(err)
+  return columns.filter((column) => text.includes(column.toLowerCase()))
 }
 
 function normalizeMeetingRecord(data) {
@@ -97,6 +106,15 @@ async function selectMeetingRecord(id) {
   if (err) throw err
 
   return data
+}
+
+function createMeetingInsertPayload(baseMeeting, hostCode) {
+  return {
+    ...baseMeeting,
+    host_code: hostCode,
+    status: 'open',
+    confirmed_date: null,
+  }
 }
 
 export const useMeetingStore = defineStore('meeting', () => {
@@ -188,136 +206,24 @@ export const useMeetingStore = defineStore('meeting', () => {
       'region_name',
       'weather_region_code',
       'temperature_region_code',
-      'sea_area_code',
       'fishing_place_name',
       'fishing_gubun',
     ]
-    const attempts = [
-      {
-        payload: {
-          ...baseMeeting,
-          host_code: hostCode,
-          status: 'open',
-          confirmed_date: null,
-        },
-        schemaColumns: ['host_code', 'status', 'confirmed_date', ...regionSchemaColumns],
-      },
-      {
-        payload: {
-          ...baseMeeting,
-          status: 'open',
-          confirmed_date: null,
-        },
-        schemaColumns: ['status', 'confirmed_date', ...regionSchemaColumns],
-      },
-      {
-        payload: {
-          ...baseMeeting,
-          host_code: hostCode,
-        },
-        schemaColumns: ['host_code', ...regionSchemaColumns],
-      },
-      {
-        payload: {
-          ...baseMeeting,
-        },
-        schemaColumns: [...regionSchemaColumns],
-      },
-      {
-        payload: {
-          id: baseMeeting.id,
-          title: baseMeeting.title,
-          date_from: baseMeeting.date_from,
-          date_to: baseMeeting.date_to,
-          host_token: baseMeeting.host_token,
-          host_code: hostCode,
-          status: 'open',
-          confirmed_date: null,
-        },
-        schemaColumns: ['host_code', 'status', 'confirmed_date'],
-      },
-      {
-        payload: {
-          id: baseMeeting.id,
-          title: baseMeeting.title,
-          date_from: baseMeeting.date_from,
-          date_to: baseMeeting.date_to,
-          host_token: baseMeeting.host_token,
-          status: 'open',
-          confirmed_date: null,
-        },
-        schemaColumns: ['status', 'confirmed_date'],
-      },
-      {
-        payload: {
-          id: baseMeeting.id,
-          title: baseMeeting.title,
-          date_from: baseMeeting.date_from,
-          date_to: baseMeeting.date_to,
-          host_token: baseMeeting.host_token,
-          host_code: hostCode,
-        },
-        schemaColumns: ['host_code'],
-      },
-      {
-        payload: {
-          id: baseMeeting.id,
-          title: baseMeeting.title,
-          date_from: baseMeeting.date_from,
-          date_to: baseMeeting.date_to,
-          host_token: baseMeeting.host_token,
-        },
-        schemaColumns: ['host_token'],
-      },
-      {
-        payload: {
-          id: baseMeeting.id,
-          title: baseMeeting.title,
-          date_from: baseMeeting.date_from,
-          date_to: baseMeeting.date_to,
-        },
-        schemaColumns: [],
-      },
-    ]
+    const payload = createMeetingInsertPayload(baseMeeting, hostCode)
 
     try {
-      for (let index = 0; index < attempts.length; index += 1) {
-        const attempt = attempts[index]
-
-        try {
-          await insertMeetingRecord(attempt.payload)
-
-          try {
-            const insertedRecord = await selectMeetingRecord(baseMeeting.id)
-            return normalizeMeetingRecord(insertedRecord)
-          } catch (readError) {
-            logCompatibilityFallback('meeting read after insert fallback', readError)
-            return normalizeMeetingRecord({
-              ...baseMeeting,
-              host_code: attempt.payload.host_code || '',
-              status: attempt.payload.status || 'open',
-              confirmed_date: attempt.payload.confirmed_date || null,
-            })
-          }
-        } catch (err) {
-          const hasNextAttempt = index < attempts.length - 1
-
-          if (!hasNextAttempt || !hasSchemaMismatch(err, attempt.schemaColumns)) {
-            throw err
-          }
-
-          logCompatibilityFallback('meeting insert fallback: optional columns unavailable', err)
-        }
-      }
-
-      return normalizeMeetingRecord({
-        ...baseMeeting,
-        host_code: '',
-        status: 'open',
-        confirmed_date: null,
-      })
+      await insertMeetingRecord(payload)
+      const insertedRecord = await selectMeetingRecord(baseMeeting.id)
+      return normalizeMeetingRecord(insertedRecord)
     } catch (err) {
       logSupabaseError('failed to create meeting', err)
+
+      if (hasSchemaMismatch(err, regionSchemaColumns)) {
+        const mismatchColumns = getSchemaMismatchColumns(err, regionSchemaColumns)
+        const mismatchLabel = mismatchColumns.length ? ` (${mismatchColumns.join(', ')})` : ''
+        throw createUserFacingError(`${MEETING_REGION_SCHEMA_MISMATCH_ERROR_MESSAGE}${mismatchLabel}`)
+      }
+
       throw buildSupabaseError(err)
     }
   }

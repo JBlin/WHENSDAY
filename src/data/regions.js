@@ -1157,7 +1157,6 @@ export function buildRegionMeetingFields(regionOrId) {
     region_name: region.name,
     weather_region_code: region.weatherRegionCode,
     temperature_region_code: region.temperatureRegionCode,
-    sea_area_code: region.seaAreaCode || null,
     fishing_place_name: region.fishingPlaceName,
     fishing_gubun: region.fishingGubun,
   }
@@ -1212,7 +1211,7 @@ export function getRegionFromMeetingRecord(record) {
     fishingGubun: record.fishing_gubun || null,
     supportsSeaInfo: Boolean(record.fishing_place_name && record.fishing_gubun),
     codeNote: '',
-    seaAreaCode: record.sea_area_code || null,
+    seaAreaCode: null,
   }
 }
 

@@ -41,7 +41,6 @@ create table meetings (
   region_name text,
   weather_region_code text,
   temperature_region_code text,
-  sea_area_code text,
   fishing_place_name text,
   fishing_gubun text,
   created_at timestamptz default now()
@@ -64,7 +63,6 @@ alter table meetings add column if not exists confirmed_date date;
 alter table meetings add column if not exists region_name text;
 alter table meetings add column if not exists weather_region_code text;
 alter table meetings add column if not exists temperature_region_code text;
-alter table meetings add column if not exists sea_area_code text;
 alter table meetings add column if not exists fishing_place_name text;
 alter table meetings add column if not exists fishing_gubun text;
 alter table responses add column if not exists is_host boolean not null default false;
