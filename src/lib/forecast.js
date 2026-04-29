@@ -8,6 +8,20 @@ import {
 export const FORECAST_EMPTY_MESSAGE =
   '선택한 기간에 제공되는 예보 정보가 없어요. 중기예보는 발표 시각 기준 4~10일 후 날짜부터 제공돼요.'
 
+export async function fetchShortForecast(nx, ny) {
+  const params = new URLSearchParams({ nx: String(nx), ny: String(ny) })
+  const response = await fetch(`/api/shortforecast?${params}`)
+  const payload = await response.json().catch(() => null)
+  if (!response.ok || !payload?.ok) return []
+  return Array.isArray(payload.items) ? payload.items : []
+}
+
+export function mergeShortAndMedium(shortItems, mediumItems) {
+  const mediumDates = new Set(mediumItems.map((item) => item.date))
+  const shortOnly = shortItems.filter((item) => !mediumDates.has(item.date))
+  return [...shortOnly, ...mediumItems].sort((a, b) => a.date.localeCompare(b.date))
+}
+
 export async function fetchForecast(options) {
   const { type, regId } = options || {}
 

@@ -138,7 +138,7 @@
         </div>
 
         <div v-if="forecastRows.length" class="space-y-2">
-          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">예보 제공 날짜</p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">날짜별 예보</p>
           <div class="overflow-hidden rounded-xl border border-white bg-white">
             <div
               v-for="row in forecastRows"

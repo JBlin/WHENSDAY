@@ -146,6 +146,7 @@ import CalendarInfoList from '../components/CalendarInfoList.vue'
 import CalendarInfoToggle from '../components/CalendarInfoToggle.vue'
 import ToastMessage from '../components/ToastMessage.vue'
 import { DEFAULT_REGION } from '../data/regions.js'
+import { getShortForecastGrid } from '../data/shortForecastGrid.js'
 import {
   fetchFishingForecast,
   filterFishingItemsByRange,
@@ -153,8 +154,10 @@ import {
 } from '../lib/fishing.js'
 import {
   fetchForecast,
+  fetchShortForecast,
   filterForecastItemsByRange,
   formatForecastDate,
+  mergeShortAndMedium,
 } from '../lib/forecast.js'
 import { hasStoredHostAccess, storeHostResponseName } from '../lib/hostAccess.js'
 import { formatDisplayDate } from '../lib/meetingUtils.js'
@@ -310,26 +313,36 @@ watch(
     forecastError.value = false
 
     try {
-      const payload =
-        type === 'sea'
-          ? await fetchFishingForecast({
-              placeName: fishingPlaceName,
-              gubun: fishingGubun,
-            })
-          : await fetchForecast({
-              type,
-              regId: type === 'weather' ? weatherRegionCode : temperatureRegionCode,
-            })
+      if (type === 'sea') {
+        const payload = await fetchFishingForecast({ placeName: fishingPlaceName, gubun: fishingGubun })
 
-      if (requestId !== forecastRequestId) return
+        if (requestId !== forecastRequestId) return
 
-      const items = type === 'sea' ? [] : Array.isArray(payload?.items) ? payload.items : []
-      const detailItems = type === 'sea' ? (Array.isArray(payload?.items) ? payload.items : []) : []
-      const message = payload?.message || ''
-      forecastCache.set(cacheKey, { items, detailItems, message })
-      forecastItems.value = items
-      fishingItems.value = detailItems
-      forecastEmptyMessage.value = message
+        const detailItems = Array.isArray(payload?.items) ? payload.items : []
+        const message = payload?.message || ''
+        forecastCache.set(cacheKey, { items: [], detailItems, message })
+        forecastItems.value = []
+        fishingItems.value = detailItems
+        forecastEmptyMessage.value = message
+      } else {
+        const regionId = store.meeting?.region?.id
+        const grid = regionId ? getShortForecastGrid(regionId) : null
+
+        const [payload, shortItems] = await Promise.all([
+          fetchForecast({ type, regId: type === 'weather' ? weatherRegionCode : temperatureRegionCode }),
+          grid ? fetchShortForecast(grid.nx, grid.ny) : Promise.resolve([]),
+        ])
+
+        if (requestId !== forecastRequestId) return
+
+        const mediumItems = Array.isArray(payload?.items) ? payload.items : []
+        const merged = mergeShortAndMedium(shortItems, mediumItems)
+        const message = payload?.message || ''
+        forecastCache.set(cacheKey, { items: merged, detailItems: [], message })
+        forecastItems.value = merged
+        fishingItems.value = []
+        forecastEmptyMessage.value = merged.length ? '' : message
+      }
     } catch (error) {
       console.error('[WHENSDAY] failed to fetch forecast info', error)
 

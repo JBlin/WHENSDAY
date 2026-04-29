@@ -108,7 +108,7 @@ function logFishingError(placeName, gubun, header) {
 }
 
 async function requestFishingForecast(placeName, gubun) {
-  const serviceKey = process.env.FISHING_SERVICE_KEY
+  const serviceKey = process.env.FISHING_SERVICE_KEY || process.env.KMA_SERVICE_KEY
 
   if (!serviceKey) {
     throw createApiError(500, 'Fishing service key is missing.')
