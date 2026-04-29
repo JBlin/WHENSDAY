@@ -110,7 +110,6 @@
             :loading="forecastLoading"
             :error="forecastError"
             :empty-message="forecastEmptyMessage"
-            :tide-rows="visibleTideRows"
             :show-tide-limit-message="showTideLimitMessage"
             :sea-available="seaAvailable"
             :region-name="meetingRegionName"

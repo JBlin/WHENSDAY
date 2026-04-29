@@ -4,37 +4,14 @@
       참고 정보를 선택하면 날짜별 정보를 볼 수 있어요.
     </p>
 
-    <div v-else-if="selectedType === 'sea'" class="space-y-5">
+    <div v-else-if="selectedType === 'sea'" class="space-y-4">
       <section class="space-y-2">
         <div>
-          <p class="text-sm font-semibold text-gray-900">물때표</p>
-          <p class="mt-1 text-xs text-gray-500">선택한 약속 기간의 물때를 확인해 보세요.</p>
-        </div>
-
-        <div
-          v-if="showTideLimitMessage"
-          class="rounded-xl border border-dashed border-gray-200 bg-white px-3 py-3 text-sm text-gray-500"
-        >
-          물때표는 최대 60일 범위까지만 제공돼요.
-        </div>
-
-        <div v-else-if="tideRows.length" class="overflow-hidden rounded-xl border border-white bg-white">
-          <div
-            v-for="row in tideRowsWithLast"
-            :key="row.date"
-            class="flex items-center justify-between gap-3 px-3 py-2.5 text-sm"
-            :class="row.isLast ? '' : 'border-b border-gray-100'"
-          >
-            <span class="font-medium text-gray-700">{{ row.dateLabel }}</span>
-            <span class="text-gray-600">{{ row.tideLabel }}</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="space-y-2">
-        <div>
-          <p class="text-sm font-semibold text-gray-900">{{ seaDetailTitle }}</p>
-          <p class="mt-1 text-xs text-gray-500">낚시지수, 수온, 유속, 풍속, 파고를 함께 보여드려요.</p>
+          <p class="text-sm font-semibold text-gray-900">낚시지수</p>
+          <p class="mt-1 text-xs text-gray-500">
+            <span v-if="regionName">{{ regionName }}의 </span>낚시 적합도와 출조 참고 정보를 확인해 보세요.
+            캘린더 날짜 아래에서는 물때를 계속 볼 수 있어요.
+          </p>
         </div>
 
         <div
@@ -49,9 +26,18 @@
         <template v-else>
           <p v-if="loading" class="text-sm text-gray-500">참고 정보를 불러오는 중이에요...</p>
 
-          <p v-else-if="error" class="text-sm font-medium text-red-500">참고 정보를 불러오지 못했어요.</p>
+          <p v-else-if="error" class="text-sm font-medium text-red-500">
+            참고 정보를 불러오지 못했어요.
+          </p>
 
           <template v-else>
+            <div
+              v-if="showTideLimitMessage"
+              class="rounded-xl border border-dashed border-gray-200 bg-white px-3 py-3 text-sm text-gray-500"
+            >
+              캘린더의 물때 표시는 최대 60일 범위까지만 제공돼요.
+            </div>
+
             <div v-if="selectedDateRows.length" class="space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">선택한 날짜</p>
               <div class="overflow-hidden rounded-xl border border-white bg-white">
@@ -73,7 +59,9 @@
             </div>
 
             <div v-if="forecastRows.length" class="space-y-2">
-              <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">예보 제공 날짜</p>
+              <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                기간 내 낚시지수
+              </p>
               <div class="overflow-hidden rounded-xl border border-white bg-white">
                 <div
                   v-for="row in forecastRows"
@@ -104,7 +92,9 @@
 
       <p v-if="loading" class="text-sm text-gray-500">참고 정보를 불러오는 중이에요...</p>
 
-      <p v-else-if="error" class="text-sm font-medium text-red-500">참고 정보를 불러오지 못했어요.</p>
+      <p v-else-if="error" class="text-sm font-medium text-red-500">
+        참고 정보를 불러오지 못했어요.
+      </p>
 
       <template v-else>
         <div v-if="selectedDateRows.length" class="space-y-2">
@@ -158,7 +148,6 @@
 import { computed } from 'vue'
 import {
   FISHING_EMPTY_MESSAGE,
-  formatFishingDetailTitle,
   formatFishingPeriodLabel,
   formatFishingSummary,
 } from '../lib/fishing.js'
@@ -169,9 +158,11 @@ import {
 } from '../lib/forecast.js'
 import { getForecastTypeLabel } from '../lib/forecastConfig.js'
 
-const PROVIDING_LATER_MESSAGE = '예보 제공 전'
-const FORECAST_SECONDARY_MESSAGE = '중기예보는 보통 4~10일 후 날짜부터 확인할 수 있어요.'
-const SEA_SECONDARY_MESSAGE = '바다 상세 정보는 제공 시점과 포인트에 따라 일부 날짜가 비어 있을 수 있어요.'
+const PROVIDING_LATER_MESSAGE = '제공 전'
+const FORECAST_SECONDARY_MESSAGE =
+  '중기예보는 보통 4~10일 뒤 날짜부터 확인할 수 있어요.'
+const SEA_SECONDARY_MESSAGE =
+  '낚시지수와 출조 참고 정보는 API 제공 시점에 따라 일부 날짜가 비어 있을 수 있어요.'
 
 const props = defineProps({
   selectedType: { type: String, default: '' },
@@ -181,7 +172,6 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   error: { type: Boolean, default: false },
   emptyMessage: { type: String, default: '' },
-  tideRows: { type: Array, default: () => [] },
   showTideLimitMessage: { type: Boolean, default: false },
   seaAvailable: { type: Boolean, default: true },
   regionName: { type: String, default: '' },
@@ -191,15 +181,6 @@ const infoTitle = computed(() => {
   const typeLabel = getForecastTypeLabel(props.selectedType)
   return typeLabel ? `${typeLabel} 정보` : '참고 정보'
 })
-
-const seaDetailTitle = computed(() => formatFishingDetailTitle(props.regionName))
-
-const tideRowsWithLast = computed(() =>
-  props.tideRows.map((row, index) => ({
-    ...row,
-    isLast: index === props.tideRows.length - 1,
-  }))
-)
 
 const itemMap = computed(() => {
   return props.items.reduce((map, item) => {

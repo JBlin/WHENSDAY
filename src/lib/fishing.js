@@ -50,20 +50,18 @@ export function normalizeFishingPayload(payload) {
   }
 }
 
-export function formatFishingDetailTitle(regionName) {
-  return regionName ? `바다 상세 정보 · ${regionName}` : '바다 상세 정보'
-}
-
 export function formatFishingSummary(item) {
   if (!item) return ''
 
   const fishingIndex = normalizeText(item.fishingIndex) || '제공 전'
-  const waterTemp = formatRange(item.waterTempMin, item.waterTempMax, '°')
-  const currentSpeed = formatRange(item.currentSpeedMin, item.currentSpeedMax, 'kn')
-  const windSpeed = formatRange(item.windSpeedMin, item.windSpeedMax, 'm/s')
-  const waveHeight = formatRange(item.waveMin, item.waveMax, 'm')
+  const references = [
+    formatNamedRange('풍속', item.windSpeedMin, item.windSpeedMax, 'm/s'),
+    formatNamedRange('파고', item.waveMin, item.waveMax, 'm'),
+    formatNamedRange('수온', item.waterTempMin, item.waterTempMax, '°'),
+    formatNamedRange('유속', item.currentSpeedMin, item.currentSpeedMax, 'kn'),
+  ].filter(Boolean)
 
-  return [fishingIndex, `수온 ${waterTemp}`, `유속 ${currentSpeed}`, `풍속 ${windSpeed}`, `파고 ${waveHeight}`].join(' · ')
+  return [`낚시지수 ${fishingIndex}`, ...references].join(' / ')
 }
 
 export function formatFishingPeriodLabel(period, periodLabel = '') {
@@ -98,4 +96,10 @@ function formatRange(min, max, unit) {
   }
 
   return '제공 전'
+}
+
+function formatNamedRange(label, min, max, unit) {
+  const range = formatRange(min, max, unit)
+  if (!range || range === '제공 전') return ''
+  return `${label} ${range}`
 }
