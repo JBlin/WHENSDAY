@@ -84,7 +84,7 @@ function normalizePeriod(value) {
 }
 
 function extractItems(payload) {
-  const rawItems = payload?.body?.items?.item
+  const rawItems = payload?.response?.body?.items?.item
   return Array.isArray(rawItems) ? rawItems : rawItems ? [rawItems] : []
 }
 
@@ -127,7 +127,7 @@ async function requestFishingForecast(placeName, gubun) {
   const response = await fetch(url.toString())
   const text = await response.text()
   const payload = parseJsonSafely(text)
-  const header = payload?.header
+  const header = payload?.response?.header
   const resultCode = String(header?.resultCode || '')
   const resultMsg = header?.resultMsg || ''
 
