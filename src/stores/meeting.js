@@ -79,7 +79,14 @@ function normalizeResponseRecord(data) {
 }
 
 async function insertMeetingRecord(payload) {
-  const { error: err } = await supabase.from('meetings').insert(payload)
+  const finalPayload = {
+    ...payload,
+  }
+
+  console.log('[Whensday] meetings insert payload:', finalPayload)
+  console.log('[Whensday] meetings insert payload keys:', Object.keys(finalPayload))
+
+  const { error: err } = await supabase.from('meetings').insert([finalPayload])
 
   if (err) throw err
 }
@@ -121,10 +128,6 @@ export const useMeetingStore = defineStore('meeting', () => {
 
   function logSupabaseError(context, details) {
     console.error(`[WHENSDAY] ${context}`, details)
-  }
-
-  function logCompatibilityFallback(context, details) {
-    console.warn(`[WHENSDAY] ${context}`, details)
   }
 
   function buildSupabaseError(err, options = {}) {
@@ -213,6 +216,7 @@ export const useMeetingStore = defineStore('meeting', () => {
       ...regionSchemaColumns,
     ]
     const payload = createMeetingInsertPayload(baseMeeting, hostCode)
+    console.log('[Whensday] createMeeting final payload:', payload)
 
     try {
       await insertMeetingRecord(payload)
