@@ -8,10 +8,10 @@
     </div>
 
     <div class="flex flex-col items-center px-6 pb-10 pt-10 text-center">
-      <p class="font-brand text-[30px] font-black text-[#4338ca] leading-tight tracking-normal">
+      <p class="font-brand text-[24px] font-bold text-[#4338ca] leading-tight tracking-normal">
         일정 조율,<br /> 링크 하나로 끝내세요
       </p>
-      <p class="mt-3 text-sm text-gray-500 leading-[1.4]">
+      <p class="mt-3 text-[15px] text-gray-500 leading-[1.4]">
         가능한 날짜를 모아<br />가장 적합한 날을 한눈에 확인할 수 있어요.
       </p>
     </div>
