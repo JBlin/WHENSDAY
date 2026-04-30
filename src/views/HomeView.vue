@@ -35,14 +35,14 @@
         <div>
           <label class="mb-1.5 block text-sm font-semibold text-gray-700">약속 지역</label>
           <p class="mb-2 text-xs text-gray-400">
-            지역을 입력하면 해당 지역의 날씨 정보를 함께 볼 수 있어요.
+            동네 이름을 입력하면 해당 지역 기준의 날씨 정보를 볼 수 있어요.
           </p>
 
           <div class="relative">
             <input
               v-model="regionQuery"
               type="text"
-              placeholder="도시나 지역명을 입력해 주세요"
+              placeholder="동, 시, 구 이름을 입력해 주세요"
               class="h-12 w-full rounded-btn border border-gray-200 bg-gray-50 px-4 pr-11 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
               @input="handleRegionInput"
               @focus="handleRegionFocus"
@@ -75,26 +75,32 @@
             v-if="showRegionResults"
             class="mt-3 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
           >
+            <p
+              v-if="regionSearchLoading"
+              class="px-4 py-4 text-center text-sm text-gray-500"
+            >
+              지역을 찾는 중이에요.
+            </p>
             <button
               v-for="region in regionResults"
-              :key="region.id"
+              :key="region.code"
               type="button"
               class="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-gray-50"
-              :class="region.id === selectedRegionId ? 'bg-primary/[0.04]' : ''"
+              :class="region.code === selectedRegion?.legalDongCode ? 'bg-primary/[0.04]' : ''"
               @click="handleRegionSelect(region)"
             >
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold text-gray-900">
-                  {{ region.province }} · {{ getRegionDisplayName(region) }}
+                  {{ region.fullName }}
                 </p>
-                <p v-if="getRegionResultNote(region)" class="mt-1 text-xs text-gray-400">
-                  {{ getRegionResultNote(region) }}
+                <p v-if="getRegionResultNote(region.selection)" class="mt-1 text-xs text-gray-400">
+                  {{ getRegionResultNote(region.selection) }}
                 </p>
               </div>
             </button>
 
             <p
-              v-if="!regionResults.length"
+              v-if="!regionSearchLoading && !regionResults.length"
               class="px-4 py-4 text-center text-sm text-gray-500"
             >
               검색 결과가 없어요.
@@ -221,11 +227,16 @@ import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import DateRangeSheet from '../components/DateRangeSheet.vue'
 import ToastMessage from '../components/ToastMessage.vue'
-import { DEFAULT_REGION, findRegionById, searchRegions } from '../data/regions.js'
+import { DEFAULT_REGION } from '../data/regions.js'
 import { storeHostToken } from '../lib/hostAccess.js'
 import { formatDisplayDate, formatLocalDate, rangeDayCount } from '../lib/meetingUtils.js'
+import { mapLegalDongToRegionSelection } from '../lib/regionMapping.ts'
 import { buildKakaoShareText, buildMeetingUrl, copyText } from '../lib/share.js'
 import { useMeetingStore } from '../stores/meeting.js'
+
+let legalDongCache = null
+let regionSearchTimeoutId = 0
+let regionSearchRequestId = 0
 
 const router = useRouter()
 const store = useMeetingStore()
@@ -237,8 +248,10 @@ const regionQuery = ref('')
 const submitting = ref(false)
 const errorMsg = ref('')
 const rangePickerVisible = ref(false)
-const selectedRegionId = ref(null)
+const selectedRegion = ref(null)
 const showRegionResults = ref(false)
+const regionResults = ref([])
+const regionSearchLoading = ref(false)
 
 const shareVisible = ref(false)
 const shareUrl = ref('')
@@ -252,27 +265,7 @@ const toastMsg = ref('')
 const toastType = ref('success')
 
 const today = formatLocalDate(new Date())
-const selectedRegion = computed(() =>
-  selectedRegionId.value ? findRegionById(selectedRegionId.value) : null
-)
-const regionResults = computed(() => searchRegions(regionQuery.value))
-const resolvedRegion = computed(() => {
-  if (selectedRegion.value) return selectedRegion.value
-
-  const query = regionQuery.value.trim()
-  if (!query) return null
-
-  const normalizedQuery = normalizeLooseRegionText(query)
-  const exactMatch = regionResults.value.find((region) =>
-    [region.name, region.displayName, region.parentName, region.province, ...(region.aliases || [])].some(
-      (value) => normalizeLooseRegionText(value) === normalizedQuery
-    )
-  )
-
-  if (exactMatch) return exactMatch
-  if (regionResults.value.length === 1) return regionResults.value[0]
-  return null
-})
+const resolvedRegion = computed(() => selectedRegion.value)
 
 const maxDate = computed(() => {
   const date = new Date()
@@ -292,31 +285,148 @@ const dateRangeHint = computed(() => {
   return `${rangeDayCount(dateFrom.value, dateTo.value)}일 범위가 선택됐어요.`
 })
 
+async function loadLegalDongs() {
+  if (legalDongCache) return legalDongCache
+
+  const module = await import('../data/legalDongs.json')
+  legalDongCache = Array.isArray(module.default) ? module.default : []
+  return legalDongCache
+}
+
+function normalizeRegionSearchText(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+function normalizeLooseRegionText(value) {
+  return normalizeRegionSearchText(value).replace(/\s+/g, '')
+}
+
+function getCompactRegionText(value) {
+  return normalizeLooseRegionText(value)
+}
+
+function getLegalDongSearchScore(legalDong, query, compactQuery) {
+  const dong = normalizeRegionSearchText(legalDong.dong)
+  const fullName = normalizeRegionSearchText(legalDong.fullName)
+  const searchText = normalizeRegionSearchText(legalDong.searchText)
+  const compactDong = getCompactRegionText(legalDong.dong)
+  const compactFullName = getCompactRegionText(legalDong.fullName)
+  const compactSearchText = getCompactRegionText(legalDong.searchText)
+
+  if (
+    dong.startsWith(query) ||
+    fullName.startsWith(query) ||
+    compactDong.startsWith(compactQuery) ||
+    compactFullName.startsWith(compactQuery)
+  ) {
+    return 0
+  }
+
+  if (fullName.includes(query) || compactFullName.includes(compactQuery)) {
+    return 1
+  }
+
+  if (searchText.includes(query) || compactSearchText.includes(compactQuery)) {
+    return 2
+  }
+
+  return Number.POSITIVE_INFINITY
+}
+
+function buildRegionSearchResults(legalDongs, query) {
+  const normalizedQuery = normalizeRegionSearchText(query)
+  const compactQuery = getCompactRegionText(query)
+  if (!normalizedQuery || !compactQuery) return []
+
+  return legalDongs
+    .map((legalDong, index) => ({
+      legalDong,
+      index,
+      score: getLegalDongSearchScore(legalDong, normalizedQuery, compactQuery),
+    }))
+    .filter((item) => Number.isFinite(item.score))
+    .sort((left, right) => {
+      if (left.score !== right.score) return left.score - right.score
+      if (left.legalDong.fullName.length !== right.legalDong.fullName.length) {
+        return left.legalDong.fullName.length - right.legalDong.fullName.length
+      }
+      return left.index - right.index
+    })
+    .slice(0, 20)
+    .map(({ legalDong }) => ({
+      ...legalDong,
+      selection: mapLegalDongToRegionSelection(legalDong),
+    }))
+}
+
+function queueRegionSearch(query) {
+  clearTimeout(regionSearchTimeoutId)
+
+  if (!query) {
+    regionSearchLoading.value = false
+    regionResults.value = []
+    return
+  }
+
+  regionSearchTimeoutId = setTimeout(async () => {
+    const requestId = ++regionSearchRequestId
+    regionSearchLoading.value = true
+
+    try {
+      const legalDongs = await loadLegalDongs()
+      if (requestId !== regionSearchRequestId) return
+      regionResults.value = buildRegionSearchResults(legalDongs, query)
+    } catch (error) {
+      console.error('[WHENSDAY] failed to load legal dong data', error)
+      if (requestId !== regionSearchRequestId) return
+      regionResults.value = []
+    } finally {
+      if (requestId === regionSearchRequestId) {
+        regionSearchLoading.value = false
+      }
+    }
+  }, 180)
+}
+
 function handleRegionInput() {
   const trimmedQuery = regionQuery.value.trim()
   showRegionResults.value = trimmedQuery.length > 0
 
-  if (selectedRegion.value && trimmedQuery !== getRegionDisplayName(selectedRegion.value)) {
-    selectedRegionId.value = null
+  if (
+    selectedRegion.value &&
+    normalizeLooseRegionText(trimmedQuery) !==
+      normalizeLooseRegionText(getRegionDisplayName(selectedRegion.value))
+  ) {
+    selectedRegion.value = null
   }
+
+  queueRegionSearch(trimmedQuery)
 }
 
 function handleRegionFocus() {
-  if (regionQuery.value.trim()) {
+  const trimmedQuery = regionQuery.value.trim()
+  if (trimmedQuery) {
     showRegionResults.value = true
+    queueRegionSearch(trimmedQuery)
   }
 }
 
 function handleRegionSelect(region) {
-  selectedRegionId.value = region.id
-  regionQuery.value = getRegionDisplayName(region)
+  selectedRegion.value = region.selection
+  regionQuery.value = region.fullName
   showRegionResults.value = false
 }
 
 function clearRegion() {
-  selectedRegionId.value = null
+  clearTimeout(regionSearchTimeoutId)
+  selectedRegion.value = null
   regionQuery.value = ''
   showRegionResults.value = false
+  regionSearchLoading.value = false
+  regionResults.value = []
 }
 
 async function create() {
@@ -418,19 +528,12 @@ function showToast(message, type = 'success') {
   }, 2500)
 }
 
-function normalizeLooseRegionText(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '')
-}
-
 function getRegionDisplayName(region) {
-  return region?.displayName || region?.name || ''
+  return region?.regionDisplayName || region?.displayName || region?.name || ''
 }
 
 function getRegionParentName(region) {
-  return region?.parentName || getRegionDisplayName(region)
+  return region?.regionParentName || region?.parentName || getRegionDisplayName(region)
 }
 
 function getRegionResultNote(region) {
@@ -438,8 +541,12 @@ function getRegionResultNote(region) {
 
   const displayName = getRegionDisplayName(region)
   const parentName = getRegionParentName(region)
+  const mappingNote = region.mappingNote || region.codeNote || ''
   const showParentHint =
-    region.administrativeLevel !== 'city' || parentName !== displayName || region.supportsSeaInfo
+    region.administrativeLevel !== 'city' ||
+    parentName !== displayName ||
+    region.supportsSeaInfo ||
+    Boolean(mappingNote)
 
   if (!showParentHint) return ''
 

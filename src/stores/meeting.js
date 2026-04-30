@@ -20,7 +20,11 @@ const HOST_RECOVERY_UNAVAILABLE_ERROR_MESSAGE =
 const MEETING_SCHEMA_MISMATCH_ERROR_PREFIX =
   'Supabase meetings 테이블 컬럼이 앱과 맞지 않아요.'
 
-const OPTIONAL_REGION_SCHEMA_COLUMNS = ['region_display_name', 'region_parent_name']
+const OPTIONAL_REGION_SCHEMA_COLUMNS = [
+  'region_display_name',
+  'region_parent_name',
+  'legal_dong_code',
+]
 
 function createUserFacingError(message = GENERIC_REQUEST_ERROR_MESSAGE) {
   return new Error(message)
@@ -85,6 +89,7 @@ function buildRegionDebugSnapshot(recordOrMeeting) {
     region_name: recordOrMeeting.region_name ?? null,
     region_display_name: recordOrMeeting.region_display_name ?? null,
     region_parent_name: recordOrMeeting.region_parent_name ?? null,
+    legal_dong_code: recordOrMeeting.legal_dong_code ?? null,
     weather_region_code: recordOrMeeting.weather_region_code ?? null,
     temperature_region_code: recordOrMeeting.temperature_region_code ?? null,
     fishing_place_name: recordOrMeeting.fishing_place_name ?? null,
@@ -95,6 +100,7 @@ function buildRegionDebugSnapshot(recordOrMeeting) {
           name: recordOrMeeting.region.name,
           displayName: recordOrMeeting.region.displayName,
           parentName: recordOrMeeting.region.parentName,
+          legalDongCode: recordOrMeeting.region.legalDongCode ?? null,
           province: recordOrMeeting.region.province,
           weatherRegionCode: recordOrMeeting.region.weatherRegionCode,
           temperatureRegionCode: recordOrMeeting.region.temperatureRegionCode,
@@ -114,6 +120,8 @@ function doesMeetingRegionMatch(record, regionPayload = {}) {
       isSameNullableText(record.region_display_name, regionPayload.region_display_name)) &&
     (!Object.prototype.hasOwnProperty.call(regionPayload, 'region_parent_name') ||
       isSameNullableText(record.region_parent_name, regionPayload.region_parent_name)) &&
+    (!Object.prototype.hasOwnProperty.call(regionPayload, 'legal_dong_code') ||
+      isSameNullableText(record.legal_dong_code, regionPayload.legal_dong_code)) &&
     isSameNullableText(record.weather_region_code, regionPayload.weather_region_code) &&
     isSameNullableText(
       record.temperature_region_code,
@@ -143,6 +151,7 @@ function normalizeMeetingRecord(data) {
     DEFAULT_REGION.parentName,
     DEFAULT_REGION.name
   )
+  const legalDongCode = pickNullableRegionText(data.legal_dong_code, region.legalDongCode)
   const weatherRegionCode = pickFirstRegionText(
     data.weather_region_code,
     region.weatherRegionCode,
@@ -160,6 +169,7 @@ function normalizeMeetingRecord(data) {
     name: regionDisplayName,
     displayName: regionDisplayName,
     parentName: regionParentName,
+    legalDongCode,
     weatherRegionCode,
     temperatureRegionCode,
     fishingPlaceName,
@@ -175,6 +185,7 @@ function normalizeMeetingRecord(data) {
     region_name: regionDisplayName,
     region_display_name: regionDisplayName,
     region_parent_name: regionParentName,
+    legal_dong_code: legalDongCode,
     weather_region_code: weatherRegionCode,
     temperature_region_code: temperatureRegionCode,
     sea_area_code: normalizedRegion.seaAreaCode,

@@ -9,6 +9,7 @@ function createRegion(region) {
     parentName: region.parentName || region.name,
     province: region.province,
     aliases: Array.isArray(region.aliases) ? region.aliases : [],
+    legalDongCode: region.legalDongCode || null,
     weatherRegionCode: region.weatherRegionCode,
     temperatureRegionCode: region.temperatureRegionCode,
     fishingPlaceName,
@@ -1506,6 +1507,7 @@ export function buildRegionMeetingFields(regionOrId) {
     region_name: region.displayName || region.name,
     region_display_name: region.displayName || region.name,
     region_parent_name: region.parentName || region.name,
+    legal_dong_code: region.legalDongCode || null,
     weather_region_code: region.weatherRegionCode,
     temperature_region_code: region.temperatureRegionCode,
     fishing_place_name: region.fishingPlaceName,
@@ -1523,6 +1525,7 @@ export function buildRegionRecord(regionOrId) {
     parentName: region.parentName || region.name,
     province: region.province,
     aliases: region.aliases,
+    legalDongCode: region.legalDongCode || null,
     weatherRegionCode: region.weatherRegionCode,
     temperatureRegionCode: region.temperatureRegionCode,
     fishingPlaceName: region.fishingPlaceName,
@@ -1553,6 +1556,9 @@ export function getRegionFromMeetingRecord(record) {
   const fishingPlaceName = hasRegionText(record.fishing_place_name)
     ? record.fishing_place_name.trim()
     : ''
+  const legalDongCode = hasRegionText(record.legal_dong_code)
+    ? record.legal_dong_code.trim()
+    : ''
 
   const matchedRegion =
     REGIONS.find((region) => {
@@ -1579,6 +1585,14 @@ export function getRegionFromMeetingRecord(record) {
     }) ||
     REGIONS.find((region) => {
       return (
+        fishingPlaceName &&
+        region.fishingPlaceName === fishingPlaceName &&
+        (!weatherRegionCode || region.weatherRegionCode === weatherRegionCode) &&
+        (!temperatureRegionCode || region.temperatureRegionCode === temperatureRegionCode)
+      )
+    }) ||
+    REGIONS.find((region) => {
+      return (
         weatherRegionCode &&
         temperatureRegionCode &&
         region.weatherRegionCode === weatherRegionCode &&
@@ -1602,6 +1616,7 @@ export function getRegionFromMeetingRecord(record) {
     parentName: regionParentName || regionName || DEFAULT_REGION.parentName,
     province: '',
     aliases: [],
+    legalDongCode: legalDongCode || null,
     weatherRegionCode: weatherRegionCode || null,
     temperatureRegionCode: temperatureRegionCode || null,
     fishingPlaceName: fishingPlaceName || null,
