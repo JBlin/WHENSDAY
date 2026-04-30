@@ -67,3 +67,69 @@ export function getAvailabilityRatio(count, totalParticipants) {
   if (!totalParticipants) return 0
   return Math.round((count / totalParticipants) * 100)
 }
+
+export function hasNoOverlap(responses) {
+  if (!Array.isArray(responses) || responses.length <= 1) return false
+
+  return !Object.values(getAvailabilityMap(responses)).some((count) => count >= 2)
+}
+
+export function getClosestRecommendedDate(responses) {
+  if (!Array.isArray(responses) || responses.length <= 1) return null
+
+  const uniqueDates = [
+    ...new Set(
+      responses.flatMap((response) =>
+        Array.isArray(response.available_dates) ? response.available_dates : []
+      )
+    ),
+  ].sort((left, right) => left.localeCompare(right))
+
+  if (!uniqueDates.length) return null
+
+  return uniqueDates
+    .map((candidateDate) => {
+      let totalDistance = 0
+      let maxDistance = 0
+      let exactMatchCount = 0
+
+      responses.forEach((response) => {
+        const dates = Array.isArray(response.available_dates) ? response.available_dates : []
+        if (!dates.length) return
+
+        let nearestDistance = Infinity
+
+        dates.forEach((date) => {
+          const distance = Math.abs(
+            (parseLocalDate(candidateDate) - parseLocalDate(date)) / 86400000
+          )
+
+          if (distance < nearestDistance) {
+            nearestDistance = distance
+          }
+
+          if (date === candidateDate) {
+            exactMatchCount += 1
+          }
+        })
+
+        totalDistance += nearestDistance
+        maxDistance = Math.max(maxDistance, nearestDistance)
+      })
+
+      return {
+        date: candidateDate,
+        count: exactMatchCount,
+        totalDistance,
+        maxDistance,
+      }
+    })
+    .sort((left, right) => {
+      return (
+        right.count - left.count ||
+        left.totalDistance - right.totalDistance ||
+        left.maxDistance - right.maxDistance ||
+        left.date.localeCompare(right.date)
+      )
+    })[0]
+}

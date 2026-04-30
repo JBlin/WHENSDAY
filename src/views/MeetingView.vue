@@ -66,6 +66,17 @@
       </div>
 
       <div v-else class="flex flex-1 flex-col gap-5 px-5 py-5">
+        <div
+          v-if="showRetrySuggestionBanner"
+          class="rounded-card border border-primary/15 bg-primary/[0.04] p-4"
+        >
+          <p class="text-sm font-semibold text-primary">AI가 가장 근접한 추천 날짜를 골라봤어요</p>
+          <p class="mt-2 text-lg font-bold text-gray-900">
+            {{ formatDisplayDate(closestRecommendedDate.date) }}
+          </p>
+          <p class="mt-2 text-sm text-gray-500">{{ retrySuggestionDescription }}</p>
+        </div>
+
         <div v-if="isHost" class="rounded-card border border-amber-200 bg-amber-50 p-4">
           <p class="text-sm font-semibold text-amber-800">방장님도 가능한 날짜를 선택해 주세요.</p>
           <p class="mt-2 text-sm text-amber-700">방장님 응답도 다른 참여자와 똑같이 결과 집계에 포함돼요.</p>
@@ -160,7 +171,11 @@ import {
   mergeShortAndMedium,
 } from '../lib/forecast.js'
 import { hasStoredHostAccess, storeHostResponseName } from '../lib/hostAccess.js'
-import { formatDisplayDate } from '../lib/meetingUtils.js'
+import {
+  formatDisplayDate,
+  getClosestRecommendedDate,
+  hasNoOverlap,
+} from '../lib/meetingUtils.js'
 import { hasVotedForMeeting, markMeetingAsVoted } from '../lib/voteAccess.js'
 import { supabase } from '../lib/supabase.js'
 import { buildTideLabelMap, buildTideTable, isTideRangeSupported } from '../lib/tide.js'
@@ -177,6 +192,7 @@ const submitted = ref(false)
 const toastVisible = ref(false)
 const toastMsg = ref('')
 const toastType = ref('success')
+const retryRequested = ref(route.query.retry === '1')
 const hasVoted = ref(hasVotedForMeeting(route.params.id))
 const selectedInfoType = ref('')
 const forecastItems = ref([])
@@ -189,6 +205,24 @@ const isHost = computed(() => hasStoredHostAccess(route.params.id, store.meeting
 const isConfirmed = computed(() => store.meeting?.status === 'confirmed' && store.meeting?.confirmed_date)
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
 const canViewResult = computed(() => submitted.value || hasVoted.value || isConfirmed.value || isHost.value)
+const closestRecommendedDate = computed(() => getClosestRecommendedDate(store.responses))
+const showRetrySuggestionBanner = computed(
+  () =>
+    retryRequested.value &&
+    !isConfirmed.value &&
+    store.responses.length > 1 &&
+    hasNoOverlap(store.responses) &&
+    Boolean(closestRecommendedDate.value)
+)
+const retrySuggestionDescription = computed(() => {
+  if (!closestRecommendedDate.value) return ''
+
+  if (closestRecommendedDate.value.count > 1) {
+    return `${closestRecommendedDate.value.count}명이 이미 고른 날짜예요. 이 날짜를 기준으로 다시 조율해 보세요.`
+  }
+
+  return '기존 응답을 기준으로 서로의 선택 간격이 가장 가까운 날짜예요. 이 날짜를 중심으로 다시 맞춰보세요.'
+})
 // TODO: If host-side region editing is added later, keep the meeting record as the single source of truth here.
 const meetingRegionName = computed(() => {
   const explicitName = typeof store.meeting?.region_name === 'string'
@@ -246,6 +280,10 @@ onMounted(async () => {
   if (route.query.needVote === '1') {
     showToast('결과는 투표를 마친 뒤에 볼 수 있어요.', 'info')
     router.replace(`/meeting/${route.params.id}`)
+  }
+
+  if (retryRequested.value) {
+    showToast('겹치는 날짜가 없어 다시 조율해 주세요.', 'info')
   }
 
   store.reset()

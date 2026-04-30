@@ -65,15 +65,41 @@
           </RouterLink>
         </div>
 
-        <div v-if="isConfirmed" class="rounded-card border border-primary/15 bg-primary/[0.04] p-4">
-          <p class="text-sm font-semibold text-primary">약속 날짜가 확정됐어요</p>
-          <p class="mt-2 text-xl font-bold text-gray-900">{{ confirmedDateLabel }}</p>
-          <p class="mt-2 text-sm text-gray-500">이 날짜를 기준으로 약속을 준비하면 돼요.</p>
+        <div v-if="showRecoordinationBanner" class="rounded-card border border-rose-200 bg-rose-50 p-4">
+          <p class="text-sm font-semibold text-rose-800">재조율 요청</p>
+          <p class="mt-2 text-sm text-rose-700">
+            모두가 함께 가능한 날짜가 아직 없어요. 다시 날짜를 골라서 겹치는 구간을 만들어보세요.
+          </p>
+          <RouterLink
+            :to="`/meeting/${route.params.id}?retry=1`"
+            class="mt-4 inline-flex h-11 items-center justify-center rounded-btn bg-rose-600 px-4 text-sm font-bold text-white transition-all duration-150 active:scale-95"
+          >
+            다시 날짜 선택하기
+          </RouterLink>
+        </div>
+
+        <div v-if="isConfirmed && !isHost" class="rounded-card border-2 border-primary bg-primary/[0.04] p-5">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">🎉</span>
+            <p class="text-sm font-bold text-primary">방장이 날짜를 확정했어요!</p>
+          </div>
+
+          <div class="mt-4 rounded-xl bg-white px-4 py-4 text-center shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wider text-gray-400">확정된 날짜</p>
+            <p class="mt-2 text-2xl font-black text-gray-900">{{ confirmedDateLabel }}</p>
+          </div>
+
+          <p class="mt-4 text-center text-sm text-gray-500">이 날로 약속이 확정됐어 😊</p>
         </div>
 
         <div v-if="isHost" class="rounded-card border border-amber-200 bg-amber-50 p-4">
-          <p class="text-sm font-semibold text-amber-800">방장 모드</p>
-          <p class="mt-2 text-sm text-amber-700">{{ hostModeDescription }}</p>
+          <p class="text-sm font-semibold text-amber-800">
+            {{ isConfirmed ? '방장 모드 · 날짜 확정 완료' : '방장 모드' }}
+          </p>
+          <p v-if="isConfirmed" class="mt-2 text-sm text-amber-700">
+            {{ confirmedDateLabel }}로 약속 날짜를 확정했어요. 참여자들에게 실시간으로 알림이 전달됐어요.
+          </p>
+          <p v-else class="mt-2 text-sm text-amber-700">{{ hostModeDescription }}</p>
         </div>
 
         <div v-if="isConfirmed" class="rounded-card bg-white p-4 shadow-sm">
@@ -238,8 +264,10 @@ import {
 } from '../lib/hostAccess.js'
 import {
   formatDisplayDate,
+  getClosestRecommendedDate,
   getPerfectMatchDates,
   getTopRecommendedDates,
+  hasNoOverlap,
 } from '../lib/meetingUtils.js'
 import { buildMeetingUrl } from '../lib/share.js'
 import { hasVotedForMeeting } from '../lib/voteAccess.js'
@@ -271,6 +299,7 @@ const isConfirmed = computed(
 )
 const confirmedDateLabel = computed(() => formatDisplayDate(store.meeting?.confirmed_date || ''))
 const recommendedDates = computed(() => getTopRecommendedDates(store.responses, 3))
+const closestRecommendedDate = computed(() => getClosestRecommendedDate(store.responses))
 const perfectMatchDates = computed(() =>
   getPerfectMatchDates(store.responses, store.responses.length)
 )
@@ -290,6 +319,13 @@ const hostHasSubmitted = computed(() => {
 const canManageMeeting = computed(() => isHost.value && hostHasSubmitted.value)
 const showHostSubmissionPrompt = computed(
   () => isHost.value && !hostHasSubmitted.value && !isConfirmed.value
+)
+const showRecoordinationBanner = computed(
+  () =>
+    !isConfirmed.value &&
+    store.responses.length > 1 &&
+    hasNoOverlap(store.responses) &&
+    Boolean(closestRecommendedDate.value)
 )
 const hostModeDescription = computed(() => {
   if (hostHasSubmitted.value) {

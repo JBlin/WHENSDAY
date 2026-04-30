@@ -8,10 +8,10 @@
     </div>
 
     <div class="flex flex-col items-center px-6 pb-10 pt-10 text-center">
-      <p class="font-brand text-[24px] font-bold text-[#4338ca] leading-tight tracking-normal">
-        일정 조율,<br /> 링크 하나로 끝내세요
+      <p class="font-brand text-[22px] font-bold text-[#4338ca] leading-tight tracking-normal">
+        일정 조율, 링크 하나로 끝내세요
       </p>
-      <p class="mt-3 text-[15px] text-gray-500 leading-[1.4]">
+      <p class="mt-3 text-[14px] text-gray-500 leading-[1.4]">
         가능한 날짜를 모아<br />가장 적합한 날을 한눈에 확인할 수 있어요.
       </p>
     </div>
@@ -180,9 +180,9 @@
         <button
           type="button"
           class="mb-5 h-12 w-full rounded-btn border border-gray-200 text-sm font-semibold text-gray-700 transition-all duration-150 active:scale-95"
-          @click="copyShareText"
+          @click="copyShareLink"
         >
-          {{ copiedShareText ? '복사 완료!' : '공유 문구 복사하기' }}
+          {{ copiedShareLink ? '✅ 복사됐어요!' : '🔗 공유 링크 복사' }}
         </button>
 
         <div v-if="hostCode" class="rounded-card border border-gray-200 bg-gray-50 p-4">
@@ -239,6 +239,7 @@ const shareVisible = ref(false)
 const shareUrl = ref('')
 const shareText = ref('')
 const copiedShareText = ref(false)
+const copiedShareLink = ref(false)
 const hostCode = ref('')
 const createdId = ref('')
 const toastVisible = ref(false)
@@ -378,6 +379,20 @@ async function copyShareText() {
   } catch (error) {
     console.error('[WHENSDAY] failed to copy share text', error)
     showToast('복사에 실패했어요. 잠시 후 다시 시도해 주세요.', 'error')
+  }
+}
+
+async function copyShareLink() {
+  try {
+    await copyText(shareUrl.value)
+    copiedShareLink.value = true
+    showToast('링크를 복사했어요.')
+    setTimeout(() => {
+      copiedShareLink.value = false
+    }, 2000)
+  } catch (error) {
+    console.error('[WHENSDAY] failed to copy share link', error)
+    showToast('복사에 실패했어요.', 'error')
   }
 }
 
