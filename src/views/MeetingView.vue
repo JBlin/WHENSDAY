@@ -176,7 +176,12 @@ import {
   getClosestRecommendedDate,
   hasNoOverlap,
 } from '../lib/meetingUtils.js'
-import { hasVotedForMeeting, markMeetingAsVoted } from '../lib/voteAccess.js'
+import {
+  getStoredParticipantName,
+  hasVotedForMeeting,
+  markMeetingAsVoted,
+  storeParticipantName,
+} from '../lib/voteAccess.js'
 import { supabase } from '../lib/supabase.js'
 import { buildTideLabelMap, buildTideTable, isTideRangeSupported } from '../lib/tide.js'
 import { useMeetingStore } from '../stores/meeting.js'
@@ -185,7 +190,7 @@ const route = useRoute()
 const router = useRouter()
 const store = useMeetingStore()
 
-const name = ref('')
+const name = ref(getStoredParticipantName(route.params.id))
 const selectedDates = ref([])
 const submitting = ref(false)
 const submitted = ref(false)
@@ -439,6 +444,8 @@ async function submit() {
     await store.submitResponse(route.params.id, normalizedName, selectedDates.value, {
       isHost: isHost.value,
     })
+
+    storeParticipantName(route.params.id, normalizedName)
 
     if (isHost.value) {
       storeHostResponseName(route.params.id, normalizedName)
