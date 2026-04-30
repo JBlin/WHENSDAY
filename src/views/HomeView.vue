@@ -62,9 +62,14 @@
             </button>
           </div>
 
-          <p v-if="resolvedRegion" class="mt-2 text-xs font-semibold text-primary/80">
-            약속 지역 · {{ resolvedRegion.name }}
-          </p>
+          <div v-if="resolvedRegion" class="mt-2">
+            <p class="text-xs font-semibold text-primary/80">
+              약속 지역 · {{ getRegionDisplayName(resolvedRegion) }}
+            </p>
+            <p v-if="getRegionResultNote(resolvedRegion)" class="mt-1 text-[11px] text-gray-400">
+              {{ getRegionResultNote(resolvedRegion) }}
+            </p>
+          </div>
 
           <div
             v-if="showRegionResults"
@@ -80,10 +85,10 @@
             >
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-semibold text-gray-900">
-                  {{ region.province }} · {{ region.name }}
+                  {{ region.province }} · {{ getRegionDisplayName(region) }}
                 </p>
-                <p v-if="region.supportsSeaInfo" class="mt-1 text-xs text-gray-400">
-                  바다 정보 제공
+                <p v-if="getRegionResultNote(region)" class="mt-1 text-xs text-gray-400">
+                  {{ getRegionResultNote(region) }}
                 </p>
               </div>
             </button>
@@ -259,7 +264,7 @@ const resolvedRegion = computed(() => {
 
   const normalizedQuery = normalizeLooseRegionText(query)
   const exactMatch = regionResults.value.find((region) =>
-    [region.name, region.province, ...(region.aliases || [])].some(
+    [region.name, region.displayName, region.parentName, region.province, ...(region.aliases || [])].some(
       (value) => normalizeLooseRegionText(value) === normalizedQuery
     )
   )
@@ -291,7 +296,7 @@ function handleRegionInput() {
   const trimmedQuery = regionQuery.value.trim()
   showRegionResults.value = trimmedQuery.length > 0
 
-  if (selectedRegion.value && trimmedQuery !== selectedRegion.value.name) {
+  if (selectedRegion.value && trimmedQuery !== getRegionDisplayName(selectedRegion.value)) {
     selectedRegionId.value = null
   }
 }
@@ -304,7 +309,7 @@ function handleRegionFocus() {
 
 function handleRegionSelect(region) {
   selectedRegionId.value = region.id
-  regionQuery.value = region.name
+  regionQuery.value = getRegionDisplayName(region)
   showRegionResults.value = false
 }
 
@@ -418,6 +423,31 @@ function normalizeLooseRegionText(value) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '')
+}
+
+function getRegionDisplayName(region) {
+  return region?.displayName || region?.name || ''
+}
+
+function getRegionParentName(region) {
+  return region?.parentName || getRegionDisplayName(region)
+}
+
+function getRegionResultNote(region) {
+  if (!region) return ''
+
+  const displayName = getRegionDisplayName(region)
+  const parentName = getRegionParentName(region)
+  const showParentHint =
+    region.administrativeLevel !== 'city' || parentName !== displayName || region.supportsSeaInfo
+
+  if (!showParentHint) return ''
+
+  if (region.supportsSeaInfo) {
+    return `${parentName} 기준 · 바다 정보 제공`
+  }
+
+  return `${parentName} 기준 날씨 제공`
 }
 
 const steps = [

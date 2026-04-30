@@ -5,7 +5,8 @@
         <RouterLink to="/" class="font-brand shrink-0 text-lg font-black uppercase tracking-widest text-primary">W</RouterLink>
         <div class="min-w-0 flex-1">
           <p v-if="store.meeting" class="truncate text-sm font-bold text-gray-900">{{ store.meeting.title }}</p>
-          <p v-if="store.meeting?.region_name" class="mt-0.5 text-xs font-medium text-primary/80">약속 지역 · {{ store.meeting.region_name }}</p>
+          <p v-if="store.meeting && meetingRegionName" class="mt-0.5 text-xs font-medium text-primary/80">약속 지역 · {{ meetingRegionName }}</p>
+          <p v-if="store.meeting && meetingRegionSupportNote" class="mt-0.5 text-[11px] text-gray-400">{{ meetingRegionSupportNote }}</p>
           <p class="mt-0.5 text-xs text-gray-400">
             <span v-if="store.loading">불러오는 중...</span>
             <span v-else-if="store.responses.length">현재 {{ store.responses.length }}명 참여 중</span>
@@ -100,7 +101,8 @@
               {{ selectedDates.length }}일 선택
             </span>
           </div>
-          <p class="mb-3 text-xs font-medium text-gray-400">약속 지역 · {{ meetingRegionName }}</p>
+          <p class="mb-1 text-xs font-medium text-gray-400">약속 지역 · {{ meetingRegionName }}</p>
+          <p v-if="meetingRegionSupportNote" class="mb-3 text-[11px] text-gray-400">{{ meetingRegionSupportNote }}</p>
           <CalendarInfoToggle
             v-model="selectedInfoType"
             :sea-available="seaAvailable"
@@ -230,17 +232,49 @@ const retrySuggestionDescription = computed(() => {
 })
 // TODO: If host-side region editing is added later, keep the meeting record as the single source of truth here.
 const meetingRegionName = computed(() => {
-  const explicitName = typeof store.meeting?.region_name === 'string'
-    ? store.meeting.region_name.trim()
+  if (!store.meeting) return ''
+
+  const explicitName = typeof store.meeting?.region_display_name === 'string'
+    ? store.meeting.region_display_name.trim()
+    : typeof store.meeting?.region_name === 'string'
+      ? store.meeting.region_name.trim()
     : ''
   if (explicitName) return explicitName
 
-  const normalizedName = typeof store.meeting?.region?.name === 'string'
-    ? store.meeting.region.name.trim()
+  const normalizedName = typeof store.meeting?.region?.displayName === 'string'
+    ? store.meeting.region.displayName.trim()
+    : typeof store.meeting?.region?.name === 'string'
+      ? store.meeting.region.name.trim()
     : ''
   if (normalizedName) return normalizedName
 
   return DEFAULT_REGION.name
+})
+const meetingRegionParentName = computed(() => {
+  if (!store.meeting) return ''
+
+  const explicitParentName = typeof store.meeting?.region_parent_name === 'string'
+    ? store.meeting.region_parent_name.trim()
+    : ''
+  if (explicitParentName) return explicitParentName
+
+  const normalizedParentName = typeof store.meeting?.region?.parentName === 'string'
+    ? store.meeting.region.parentName.trim()
+    : ''
+  if (normalizedParentName) return normalizedParentName
+
+  return meetingRegionName.value
+})
+const meetingRegionSupportNote = computed(() => {
+  const parentName = meetingRegionParentName.value || meetingRegionName.value
+  if (!parentName) return ''
+
+  if (seaAvailable.value) {
+    return `${parentName} 기준 · 바다 정보 제공`
+  }
+
+  if (parentName === meetingRegionName.value) return ''
+  return `${parentName} 기준 날씨 제공`
 })
 const seaAvailable = computed(() =>
   Boolean(store.meeting?.fishing_place_name && store.meeting?.fishing_gubun)

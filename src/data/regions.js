@@ -5,6 +5,8 @@ function createRegion(region) {
   return {
     id: region.id,
     name: region.name,
+    displayName: region.displayName || region.name,
+    parentName: region.parentName || region.name,
     province: region.province,
     aliases: Array.isArray(region.aliases) ? region.aliases : [],
     weatherRegionCode: region.weatherRegionCode,
@@ -17,6 +19,7 @@ function createRegion(region) {
         : Boolean(fishingPlaceName && fishingGubun),
     codeNote: region.codeNote || '',
     seaAreaCode: region.seaAreaCode || null,
+    administrativeLevel: region.administrativeLevel || 'city',
   }
 }
 
@@ -33,23 +36,31 @@ function hasRegionText(value) {
 
 function getRegionSearchScore(region, keyword) {
   const name = normalizeSearchText(region.name)
+  const displayName = normalizeSearchText(region.displayName)
+  const parentName = normalizeSearchText(region.parentName)
   const province = normalizeSearchText(region.province)
   const aliases = (region.aliases || []).map(normalizeSearchText).filter(Boolean)
 
   if (!keyword) return Number.POSITIVE_INFINITY
   if (name === keyword) return 0
-  if (aliases.includes(keyword)) return 1
-  if (province === keyword) return 2
-  if (name.startsWith(keyword)) return 3
-  if (aliases.some((alias) => alias.startsWith(keyword))) return 4
-  if (province.startsWith(keyword)) return 5
-  if (name.includes(keyword)) return 6
-  if (aliases.some((alias) => alias.includes(keyword))) return 7
-  if (province.includes(keyword)) return 8
+  if (displayName === keyword) return 1
+  if (aliases.includes(keyword)) return 2
+  if (parentName === keyword) return 3
+  if (province === keyword) return 4
+  if (name.startsWith(keyword)) return 5
+  if (displayName.startsWith(keyword)) return 6
+  if (aliases.some((alias) => alias.startsWith(keyword))) return 7
+  if (parentName.startsWith(keyword)) return 8
+  if (province.startsWith(keyword)) return 9
+  if (name.includes(keyword)) return 10
+  if (displayName.includes(keyword)) return 11
+  if (aliases.some((alias) => alias.includes(keyword))) return 12
+  if (parentName.includes(keyword)) return 13
+  if (province.includes(keyword)) return 14
   return Number.POSITIVE_INFINITY
 }
 
-export const REGIONS = [
+const BASE_REGIONS = [
   createRegion({
     id: 'seoul',
     name: '서울',
@@ -1114,6 +1125,329 @@ export const REGIONS = [
   }),
 ]
 
+const BASE_REGION_MAP = new Map(BASE_REGIONS.map((region) => [region.id, region]))
+
+function createDerivedRegion(region) {
+  const parentRegion = BASE_REGION_MAP.get(region.parentId)
+  if (!parentRegion) {
+    throw new Error(`Unknown parent region: ${region.parentId}`)
+  }
+
+  return createRegion({
+    id: region.id,
+    name: region.name,
+    displayName: region.displayName || region.name,
+    parentName: region.parentName || parentRegion.name,
+    province: region.province || parentRegion.province,
+    aliases: region.aliases || [],
+    weatherRegionCode: region.weatherRegionCode || parentRegion.weatherRegionCode,
+    temperatureRegionCode: region.temperatureRegionCode || parentRegion.temperatureRegionCode,
+    fishingPlaceName:
+      Object.prototype.hasOwnProperty.call(region, 'fishingPlaceName')
+        ? region.fishingPlaceName
+        : parentRegion.fishingPlaceName,
+    fishingGubun:
+      Object.prototype.hasOwnProperty.call(region, 'fishingGubun')
+        ? region.fishingGubun
+        : parentRegion.fishingGubun,
+    supportsSeaInfo:
+      Object.prototype.hasOwnProperty.call(region, 'supportsSeaInfo')
+        ? region.supportsSeaInfo
+        : parentRegion.supportsSeaInfo,
+    codeNote: region.codeNote || parentRegion.codeNote || '',
+    seaAreaCode:
+      Object.prototype.hasOwnProperty.call(region, 'seaAreaCode')
+        ? region.seaAreaCode
+        : parentRegion.seaAreaCode,
+    administrativeLevel: region.administrativeLevel || 'dong',
+  })
+}
+
+const DONG_REGIONS = [
+  createDerivedRegion({
+    id: 'seongsu-dong',
+    name: '성수동',
+    parentId: 'seoul',
+    aliases: ['성수', '서울 성수동'],
+  }),
+  createDerivedRegion({
+    id: 'yeoksam-dong',
+    name: '역삼동',
+    parentId: 'seoul',
+    aliases: ['역삼', '강남 역삼동'],
+  }),
+  createDerivedRegion({
+    id: 'samseong-dong',
+    name: '삼성동',
+    parentId: 'seoul',
+    aliases: ['삼성', '강남 삼성동', '코엑스'],
+  }),
+  createDerivedRegion({
+    id: 'sinsa-dong-seoul',
+    name: '신사동',
+    parentId: 'seoul',
+    aliases: ['신사', '가로수길'],
+  }),
+  createDerivedRegion({
+    id: 'seogyo-dong',
+    name: '서교동',
+    parentId: 'seoul',
+    aliases: ['홍대입구', '홍대', '홍대입구역', '홍대입구동'],
+  }),
+  createDerivedRegion({
+    id: 'yeouido-dong',
+    name: '여의도동',
+    parentId: 'seoul',
+    aliases: ['여의도', '여의도역'],
+  }),
+  createDerivedRegion({
+    id: 'jamsil-dong',
+    name: '잠실동',
+    parentId: 'seoul',
+    aliases: ['잠실', '잠실역'],
+  }),
+  createDerivedRegion({
+    id: 'magok-dong',
+    name: '마곡동',
+    parentId: 'seoul',
+    aliases: ['마곡', '마곡나루'],
+  }),
+  createDerivedRegion({
+    id: 'hapjeong-dong',
+    name: '합정동',
+    parentId: 'seoul',
+    aliases: ['합정', '합정역'],
+  }),
+  createDerivedRegion({
+    id: 'yeonnam-dong',
+    name: '연남동',
+    parentId: 'seoul',
+    aliases: ['연남', '연트럴파크'],
+  }),
+  createDerivedRegion({
+    id: 'haeundae-dong',
+    name: '해운대동',
+    parentId: 'busan-dongbu',
+    parentName: '부산',
+    aliases: ['해운대', '부산 해운대동'],
+  }),
+  createDerivedRegion({
+    id: 'gwangan-dong',
+    name: '광안동',
+    parentId: 'busan-nambu',
+    parentName: '부산',
+    aliases: ['광안리', '광안', '부산 광안동'],
+  }),
+  createDerivedRegion({
+    id: 'daeyeon-dong',
+    name: '대연동',
+    parentId: 'busan-nambu',
+    parentName: '부산',
+    aliases: ['대연', '경성대', '부경대'],
+  }),
+  createDerivedRegion({
+    id: 'nampo-dong',
+    name: '남포동',
+    parentId: 'busan-seobu',
+    parentName: '부산',
+    aliases: ['남포', '자갈치'],
+  }),
+  createDerivedRegion({
+    id: 'bujeon-dong',
+    name: '부전동',
+    parentId: 'busan',
+    aliases: ['서면', '부전', '서면역'],
+    fishingPlaceName: null,
+    fishingGubun: null,
+    supportsSeaInfo: false,
+    seaAreaCode: null,
+  }),
+  createDerivedRegion({
+    id: 'gijang-eup',
+    name: '기장읍',
+    parentId: 'busan-dongbu',
+    parentName: '부산',
+    aliases: ['기장', '부산 기장'],
+    administrativeLevel: 'district',
+  }),
+  createDerivedRegion({
+    id: 'aewol-eup',
+    name: '애월읍',
+    parentId: 'jeju',
+    aliases: ['애월', '제주 애월'],
+  }),
+  createDerivedRegion({
+    id: 'hanlim-eup',
+    name: '한림읍',
+    parentId: 'jeju',
+    aliases: ['한림', '제주 한림'],
+  }),
+  createDerivedRegion({
+    id: 'gujwa-eup',
+    name: '구좌읍',
+    parentId: 'jeju',
+    aliases: ['구좌', '제주 구좌'],
+  }),
+  createDerivedRegion({
+    id: 'seongsan-eup',
+    name: '성산읍',
+    parentId: 'seongsanpo',
+    aliases: ['성산', '성산일출봉', '제주 성산읍'],
+  }),
+  createDerivedRegion({
+    id: 'pyoseon-myeon',
+    name: '표선면',
+    parentId: 'pyoseon',
+    aliases: ['표선', '제주 표선면'],
+  }),
+  createDerivedRegion({
+    id: 'daejeong-eup',
+    name: '대정읍',
+    parentId: 'daejeong-jeju',
+    aliases: ['대정', '모슬포', '제주 대정읍'],
+  }),
+  createDerivedRegion({
+    id: 'seogwi-dong',
+    name: '서귀동',
+    parentId: 'seogwipo',
+    aliases: ['서귀동', '서귀포 서귀동'],
+  }),
+  createDerivedRegion({
+    id: 'jungmun-dong',
+    name: '중문동',
+    parentId: 'seogwipo',
+    aliases: ['중문', '중문관광단지'],
+  }),
+  createDerivedRegion({
+    id: 'beophwan-dong',
+    name: '법환동',
+    parentId: 'seogwipo',
+    aliases: ['법환', '서귀포 법환동'],
+  }),
+  createDerivedRegion({
+    id: 'songdo-dong',
+    name: '송도동',
+    parentId: 'incheon',
+    aliases: ['송도', '송도국제도시'],
+  }),
+  createDerivedRegion({
+    id: 'cheongna-dong',
+    name: '청라동',
+    parentId: 'incheon',
+    aliases: ['청라', '청라국제도시'],
+  }),
+  createDerivedRegion({
+    id: 'yeongjong-dong',
+    name: '영종동',
+    parentId: 'incheon',
+    aliases: ['영종', '영종도'],
+  }),
+  createDerivedRegion({
+    id: 'jeongja-dong',
+    name: '정자동',
+    parentId: 'seongnam',
+    aliases: ['정자', '분당 정자동'],
+  }),
+  createDerivedRegion({
+    id: 'pangyo-dong',
+    name: '판교동',
+    parentId: 'seongnam',
+    aliases: ['판교', '테크노밸리'],
+  }),
+  createDerivedRegion({
+    id: 'gwanggyo-dong',
+    name: '광교동',
+    parentId: 'suwon',
+    aliases: ['광교', '광교중앙역'],
+  }),
+  createDerivedRegion({
+    id: 'dongtan',
+    name: '동탄',
+    parentId: 'hwaseong',
+    aliases: ['동탄신도시', '동탄역'],
+  }),
+  createDerivedRegion({
+    id: 'ilsan-dong',
+    name: '일산동',
+    parentId: 'goyang',
+    aliases: ['일산', '일산호수공원'],
+  }),
+  createDerivedRegion({
+    id: 'unjeong',
+    name: '운정',
+    parentId: 'paju',
+    aliases: ['운정신도시', '파주 운정'],
+  }),
+  createDerivedRegion({
+    id: 'gimpo-janggi-dong',
+    name: '장기동',
+    parentId: 'gimpo',
+    aliases: ['김포 장기동', '장기'],
+  }),
+  createDerivedRegion({
+    id: 'yeongheung-myeon',
+    name: '영흥면',
+    parentId: 'yeongheungdo',
+    aliases: ['영흥도', '인천 영흥면'],
+    administrativeLevel: 'district',
+  }),
+  createDerivedRegion({
+    id: 'geoje-myeon',
+    name: '거제면',
+    parentId: 'geojedo',
+    parentName: '거제도',
+    aliases: ['거제면', '거제'],
+    administrativeLevel: 'district',
+  }),
+  createDerivedRegion({
+    id: 'jangseungpo-dong',
+    name: '장승포동',
+    parentId: 'geojedo',
+    parentName: '거제도',
+    aliases: ['장승포', '거제 장승포동'],
+  }),
+  createDerivedRegion({
+    id: 'guryongpo-eup',
+    name: '구룡포읍',
+    parentId: 'pohang',
+    aliases: ['구룡포', '포항 구룡포읍'],
+    administrativeLevel: 'district',
+  }),
+  createDerivedRegion({
+    id: 'hupo-myeon',
+    name: '후포면',
+    parentId: 'hupo',
+    parentName: '후포',
+    aliases: ['후포', '울진 후포면'],
+    administrativeLevel: 'district',
+  }),
+  createDerivedRegion({
+    id: 'ulleung-eup',
+    name: '울릉읍',
+    parentId: 'ulleungdo',
+    parentName: '울릉도',
+    aliases: ['울릉읍', '울릉'],
+    administrativeLevel: 'district',
+  }),
+  createDerivedRegion({
+    id: 'gimnyeong-ri',
+    name: '김녕리',
+    parentId: 'gimnyeong',
+    parentName: '김녕',
+    aliases: ['김녕', '제주 김녕리'],
+  }),
+  createDerivedRegion({
+    id: 'chuja-myeon',
+    name: '추자면',
+    parentId: 'chujado',
+    parentName: '추자도',
+    aliases: ['추자도', '추자'],
+    administrativeLevel: 'district',
+  }),
+]
+
+export const REGIONS = [...BASE_REGIONS, ...DONG_REGIONS]
+
 export const DEFAULT_REGION_ID = 'seoul'
 export const DEFAULT_REGION = REGIONS.find((region) => region.id === DEFAULT_REGION_ID) || REGIONS[0]
 
@@ -1151,14 +1485,27 @@ export function normalizeRegion(regionOrId) {
     return findRegionById(regionOrId) || DEFAULT_REGION
   }
 
-  return findRegionById(regionOrId.id) || DEFAULT_REGION
+  const matchedRegion = findRegionById(regionOrId.id)
+  if (matchedRegion) return matchedRegion
+
+  if (
+    hasRegionText(regionOrId.name) &&
+    hasRegionText(regionOrId.weatherRegionCode) &&
+    hasRegionText(regionOrId.temperatureRegionCode)
+  ) {
+    return createRegion(regionOrId)
+  }
+
+  return DEFAULT_REGION
 }
 
 export function buildRegionMeetingFields(regionOrId) {
   const region = normalizeRegion(regionOrId)
 
   return {
-    region_name: region.name,
+    region_name: region.displayName || region.name,
+    region_display_name: region.displayName || region.name,
+    region_parent_name: region.parentName || region.name,
     weather_region_code: region.weatherRegionCode,
     temperature_region_code: region.temperatureRegionCode,
     fishing_place_name: region.fishingPlaceName,
@@ -1172,6 +1519,8 @@ export function buildRegionRecord(regionOrId) {
   return {
     id: region.id,
     name: region.name,
+    displayName: region.displayName || region.name,
+    parentName: region.parentName || region.name,
     province: region.province,
     aliases: region.aliases,
     weatherRegionCode: region.weatherRegionCode,
@@ -1181,6 +1530,7 @@ export function buildRegionRecord(regionOrId) {
     supportsSeaInfo: region.supportsSeaInfo,
     codeNote: region.codeNote,
     seaAreaCode: region.seaAreaCode || null,
+    administrativeLevel: region.administrativeLevel || 'city',
   }
 }
 
@@ -1188,6 +1538,12 @@ export function getRegionFromMeetingRecord(record) {
   if (!record) return buildRegionRecord(DEFAULT_REGION)
 
   const regionName = hasRegionText(record.region_name) ? record.region_name.trim() : ''
+  const regionDisplayName = hasRegionText(record.region_display_name)
+    ? record.region_display_name.trim()
+    : regionName
+  const regionParentName = hasRegionText(record.region_parent_name)
+    ? record.region_parent_name.trim()
+    : ''
   const weatherRegionCode = hasRegionText(record.weather_region_code)
     ? record.weather_region_code.trim()
     : ''
@@ -1200,13 +1556,9 @@ export function getRegionFromMeetingRecord(record) {
 
   const matchedRegion =
     REGIONS.find((region) => {
-      if (fishingPlaceName && region.fishingPlaceName === fishingPlaceName) {
-        return true
-      }
-
       return (
-        regionName &&
-        region.name === regionName &&
+        regionDisplayName &&
+        (region.name === regionDisplayName || region.displayName === regionDisplayName) &&
         weatherRegionCode &&
         temperatureRegionCode &&
         region.weatherRegionCode === weatherRegionCode &&
@@ -1214,7 +1566,10 @@ export function getRegionFromMeetingRecord(record) {
       )
     }) ||
     REGIONS.find((region) => {
-      if (!regionName || region.name !== regionName) return false
+      if (!regionDisplayName) return false
+      if (region.name !== regionDisplayName && region.displayName !== regionDisplayName) {
+        return false
+      }
       if (weatherRegionCode && region.weatherRegionCode !== weatherRegionCode) return false
       if (temperatureRegionCode && region.temperatureRegionCode !== temperatureRegionCode) {
         return false
@@ -1227,8 +1582,12 @@ export function getRegionFromMeetingRecord(record) {
         weatherRegionCode &&
         temperatureRegionCode &&
         region.weatherRegionCode === weatherRegionCode &&
-        region.temperatureRegionCode === temperatureRegionCode
+        region.temperatureRegionCode === temperatureRegionCode &&
+        (!regionParentName || region.parentName === regionParentName || region.name === regionParentName)
       )
+    }) ||
+    REGIONS.find((region) => {
+      return !regionDisplayName && fishingPlaceName && region.fishingPlaceName === fishingPlaceName
     }) ||
     null
 
@@ -1237,8 +1596,10 @@ export function getRegionFromMeetingRecord(record) {
   }
 
   return {
-    id: regionName ? `custom-${normalizeSearchText(regionName)}` : DEFAULT_REGION.id,
-    name: regionName || DEFAULT_REGION.name,
+    id: regionDisplayName ? `custom-${normalizeSearchText(regionDisplayName)}` : DEFAULT_REGION.id,
+    name: regionDisplayName || regionName || DEFAULT_REGION.name,
+    displayName: regionDisplayName || regionName || DEFAULT_REGION.displayName,
+    parentName: regionParentName || regionName || DEFAULT_REGION.parentName,
     province: '',
     aliases: [],
     weatherRegionCode: weatherRegionCode || null,
@@ -1248,6 +1609,7 @@ export function getRegionFromMeetingRecord(record) {
     supportsSeaInfo: Boolean(fishingPlaceName && record.fishing_gubun),
     codeNote: '',
     seaAreaCode: null,
+    administrativeLevel: 'city',
   }
 }
 

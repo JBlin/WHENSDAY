@@ -20,6 +20,8 @@ const HOST_RECOVERY_UNAVAILABLE_ERROR_MESSAGE =
 const MEETING_SCHEMA_MISMATCH_ERROR_PREFIX =
   'Supabase meetings 테이블 컬럼이 앱과 맞지 않아요.'
 
+const OPTIONAL_REGION_SCHEMA_COLUMNS = ['region_display_name', 'region_parent_name']
+
 function createUserFacingError(message = GENERIC_REQUEST_ERROR_MESSAGE) {
   return new Error(message)
 }
@@ -66,6 +68,12 @@ function pickNullableRegionText(...values) {
   return normalized || null
 }
 
+function omitColumns(payload, columns = []) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([key]) => !columns.includes(key))
+  )
+}
+
 function isSameNullableText(left, right) {
   return pickNullableRegionText(left) === pickNullableRegionText(right)
 }
@@ -75,6 +83,8 @@ function buildRegionDebugSnapshot(recordOrMeeting) {
 
   return {
     region_name: recordOrMeeting.region_name ?? null,
+    region_display_name: recordOrMeeting.region_display_name ?? null,
+    region_parent_name: recordOrMeeting.region_parent_name ?? null,
     weather_region_code: recordOrMeeting.weather_region_code ?? null,
     temperature_region_code: recordOrMeeting.temperature_region_code ?? null,
     fishing_place_name: recordOrMeeting.fishing_place_name ?? null,
@@ -83,6 +93,8 @@ function buildRegionDebugSnapshot(recordOrMeeting) {
       ? {
           id: recordOrMeeting.region.id,
           name: recordOrMeeting.region.name,
+          displayName: recordOrMeeting.region.displayName,
+          parentName: recordOrMeeting.region.parentName,
           province: recordOrMeeting.region.province,
           weatherRegionCode: recordOrMeeting.region.weatherRegionCode,
           temperatureRegionCode: recordOrMeeting.region.temperatureRegionCode,
@@ -98,6 +110,10 @@ function doesMeetingRegionMatch(record, regionPayload = {}) {
 
   return (
     isSameNullableText(record.region_name, regionPayload.region_name) &&
+    (!Object.prototype.hasOwnProperty.call(regionPayload, 'region_display_name') ||
+      isSameNullableText(record.region_display_name, regionPayload.region_display_name)) &&
+    (!Object.prototype.hasOwnProperty.call(regionPayload, 'region_parent_name') ||
+      isSameNullableText(record.region_parent_name, regionPayload.region_parent_name)) &&
     isSameNullableText(record.weather_region_code, regionPayload.weather_region_code) &&
     isSameNullableText(
       record.temperature_region_code,
@@ -112,7 +128,21 @@ function normalizeMeetingRecord(data) {
   if (!data) return null
 
   const region = getRegionFromMeetingRecord(data)
-  const regionName = pickFirstRegionText(data.region_name, region.name, DEFAULT_REGION.name)
+  const regionDisplayName = pickFirstRegionText(
+    data.region_display_name,
+    data.region_name,
+    region.displayName,
+    region.name,
+    DEFAULT_REGION.displayName,
+    DEFAULT_REGION.name
+  )
+  const regionParentName = pickFirstRegionText(
+    data.region_parent_name,
+    region.parentName,
+    region.name,
+    DEFAULT_REGION.parentName,
+    DEFAULT_REGION.name
+  )
   const weatherRegionCode = pickFirstRegionText(
     data.weather_region_code,
     region.weatherRegionCode,
@@ -127,7 +157,9 @@ function normalizeMeetingRecord(data) {
   const fishingGubun = pickNullableRegionText(data.fishing_gubun, region.fishingGubun)
   const normalizedRegion = {
     ...region,
-    name: regionName,
+    name: regionDisplayName,
+    displayName: regionDisplayName,
+    parentName: regionParentName,
     weatherRegionCode,
     temperatureRegionCode,
     fishingPlaceName,
@@ -140,7 +172,9 @@ function normalizeMeetingRecord(data) {
     host_token: data.host_token || '',
     status: data.status || 'open',
     confirmed_date: data.confirmed_date || null,
-    region_name: regionName,
+    region_name: regionDisplayName,
+    region_display_name: regionDisplayName,
+    region_parent_name: regionParentName,
     weather_region_code: weatherRegionCode,
     temperature_region_code: temperatureRegionCode,
     sea_area_code: normalizedRegion.seaAreaCode,
@@ -298,11 +332,11 @@ export const useMeetingStore = defineStore('meeting', () => {
       date_from: dateFrom,
       date_to: dateTo,
       host_token: crypto.randomUUID(),
-      ...regionPayload,
     }
     const hostCode = createHostCode()
     const regionSchemaColumns = [
       'region_name',
+      ...OPTIONAL_REGION_SCHEMA_COLUMNS,
       'weather_region_code',
       'temperature_region_code',
       'fishing_place_name',
@@ -315,20 +349,49 @@ export const useMeetingStore = defineStore('meeting', () => {
       'confirmed_date',
       ...regionSchemaColumns,
     ]
-    const payload = createMeetingInsertPayload(baseMeeting, hostCode)
+    let persistedRegionPayload = {
+      ...regionPayload,
+    }
+    let payload = createMeetingInsertPayload(
+      { ...baseMeeting, ...persistedRegionPayload },
+      hostCode
+    )
     console.log('[Whensday] createMeeting final payload:', payload)
 
     try {
-      await insertMeetingRecord(payload)
+      try {
+        await insertMeetingRecord(payload)
+      } catch (err) {
+        const optionalMismatchColumns = getSchemaMismatchColumns(
+          err,
+          OPTIONAL_REGION_SCHEMA_COLUMNS
+        )
+
+        if (!optionalMismatchColumns.length) {
+          throw err
+        }
+
+        logCompatibilityFallback(
+          'meeting insert fallback: optional region display columns unavailable',
+          err
+        )
+        persistedRegionPayload = omitColumns(persistedRegionPayload, optionalMismatchColumns)
+        payload = createMeetingInsertPayload(
+          { ...baseMeeting, ...persistedRegionPayload },
+          hostCode
+        )
+        await insertMeetingRecord(payload)
+      }
+
       let insertedRecord = await selectMeetingRecord(baseMeeting.id)
       console.log('[Whensday] createMeeting inserted row:', buildRegionDebugSnapshot(insertedRecord))
 
-      if (!doesMeetingRegionMatch(insertedRecord, regionPayload)) {
+      if (!doesMeetingRegionMatch(insertedRecord, persistedRegionPayload)) {
         console.warn('[Whensday] createMeeting region mismatch detected. repairing row...', {
-          expected: regionPayload,
+          expected: persistedRegionPayload,
           actual: buildRegionDebugSnapshot(insertedRecord),
         })
-        await updateMeetingRegionRecord(baseMeeting.id, regionPayload)
+        await updateMeetingRegionRecord(baseMeeting.id, persistedRegionPayload)
         insertedRecord = await selectMeetingRecord(baseMeeting.id)
         console.log(
           '[Whensday] createMeeting repaired row:',

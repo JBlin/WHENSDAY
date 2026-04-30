@@ -39,6 +39,8 @@ create table meetings (
   status text not null default 'open',
   confirmed_date date,
   region_name text,
+  region_display_name text,
+  region_parent_name text,
   weather_region_code text,
   temperature_region_code text,
   fishing_place_name text,
@@ -61,6 +63,8 @@ alter table meetings add column if not exists host_code text;
 alter table meetings add column if not exists status text not null default 'open';
 alter table meetings add column if not exists confirmed_date date;
 alter table meetings add column if not exists region_name text;
+alter table meetings add column if not exists region_display_name text;
+alter table meetings add column if not exists region_parent_name text;
 alter table meetings add column if not exists weather_region_code text;
 alter table meetings add column if not exists temperature_region_code text;
 alter table meetings add column if not exists fishing_place_name text;
@@ -84,7 +88,9 @@ alter publication supabase_realtime add table responses;
 
 - `/meeting/:id`의 `날씨`, `온도` 뱃지는 `/api/forecast` Vercel Function을 통해 기상청 중기예보 API를 프록시 호출합니다.
 - `/meeting/:id`의 `바다` 뱃지는 `/api/fishing` Vercel Function을 통해 바다낚시지수 API를 프록시 호출합니다.
-- 약속 생성 시 선택한 지역의 `weather_region_code`, `temperature_region_code`, `fishing_place_name`, `fishing_gubun`이 meeting 레코드에 저장됩니다.
+- 약속 생성 시 `region_display_name`에는 사용자가 선택한 실제 지역명(예: `서귀동`)이 저장되고, `region_parent_name`에는 API 기준 대표 지역명(예: `서귀포`)이 저장됩니다.
+- `region_name`은 기존 호환을 위해 실제 선택 지역명과 동일하게 저장됩니다.
+- `weather_region_code`, `temperature_region_code`, `fishing_place_name`, `fishing_gubun`은 대표 API 매핑 지역 기준으로 meeting 레코드에 저장됩니다.
 - 중기예보는 발표 시각 기준 `4~10일 후` 날짜 중심으로 제공되므로, 가까운 날짜 범위에서는 정보가 없을 수 있습니다.
 - 물때 표시는 API의 `tdlvHrCn` 텍스트를 그대로 쓰지 않고, 브라우저 `Intl` 기반 음력일 계산 후 `n물`로 표시합니다.
 
