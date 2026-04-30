@@ -24,6 +24,7 @@ body {
 @layer utilities {
   .font-brand {
     font-family: 'Paperlogy', 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: -0.5px;
   }
 
   .safe-bottom {
