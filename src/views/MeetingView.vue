@@ -314,6 +314,7 @@ const calendarTideLabels = computed(() =>
 let realtimeChannel = null
 let forecastRequestId = 0
 const forecastCache = new Map()
+let liveSyncIntervalId = 0
 
 onMounted(async () => {
   if (route.query.needVote === '1') {
@@ -331,11 +332,13 @@ onMounted(async () => {
   if (!store.error) {
     await store.fetchResponses(route.params.id)
     subscribeRealtime()
+    startLiveSync()
   }
 })
 
 onUnmounted(() => {
   realtimeChannel?.unsubscribe()
+  stopLiveSync()
 })
 
 watch(
@@ -456,6 +459,29 @@ function subscribeRealtime() {
       }
     )
     .subscribe()
+}
+
+function startLiveSync() {
+  stopLiveSync()
+  liveSyncIntervalId = window.setInterval(handleLiveSync, 5000)
+  window.addEventListener('focus', handleLiveSync)
+  document.addEventListener('visibilitychange', handleLiveSync)
+}
+
+function stopLiveSync() {
+  if (liveSyncIntervalId) {
+    clearInterval(liveSyncIntervalId)
+    liveSyncIntervalId = 0
+  }
+
+  window.removeEventListener('focus', handleLiveSync)
+  document.removeEventListener('visibilitychange', handleLiveSync)
+}
+
+function handleLiveSync() {
+  if (document.visibilityState !== 'visible') return
+  store.fetchResponses(route.params.id)
+  store.fetchMeeting(route.params.id)
 }
 
 function showToast(message, type = 'success') {

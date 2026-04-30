@@ -388,6 +388,7 @@ const calendarDescription = computed(() => {
 })
 
 let realtimeChannel = null
+let liveSyncIntervalId = 0
 
 onMounted(async () => {
   store.reset()
@@ -412,6 +413,7 @@ onMounted(async () => {
 
   await store.fetchResponses(route.params.id)
   subscribeRealtime()
+  startLiveSync()
 
   if (route.query.submitted === '1') {
     showToast('제출 완료! 결과를 바로 확인해 보세요.')
@@ -421,6 +423,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   realtimeChannel?.unsubscribe()
+  stopLiveSync()
 })
 
 function subscribeRealtime() {
@@ -451,6 +454,29 @@ function subscribeRealtime() {
       }
     )
     .subscribe()
+}
+
+function startLiveSync() {
+  stopLiveSync()
+  liveSyncIntervalId = window.setInterval(handleLiveSync, 5000)
+  window.addEventListener('focus', handleLiveSync)
+  document.addEventListener('visibilitychange', handleLiveSync)
+}
+
+function stopLiveSync() {
+  if (liveSyncIntervalId) {
+    clearInterval(liveSyncIntervalId)
+    liveSyncIntervalId = 0
+  }
+
+  window.removeEventListener('focus', handleLiveSync)
+  document.removeEventListener('visibilitychange', handleLiveSync)
+}
+
+function handleLiveSync() {
+  if (document.visibilityState !== 'visible') return
+  store.fetchResponses(route.params.id)
+  store.fetchMeeting(route.params.id)
 }
 
 function openSheet(date) {
