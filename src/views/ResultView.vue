@@ -438,7 +438,7 @@ function subscribeRealtime() {
         filter: `meeting_id=eq.${route.params.id}`,
       },
       () => {
-        store.fetchResponses(route.params.id)
+        store.fetchResponses(route.params.id, { background: true })
       }
     )
     .on(
@@ -450,7 +450,7 @@ function subscribeRealtime() {
         filter: `id=eq.${route.params.id}`,
       },
       () => {
-        store.fetchMeeting(route.params.id)
+        store.fetchMeeting(route.params.id, { background: true })
       }
     )
     .subscribe()
@@ -475,8 +475,8 @@ function stopLiveSync() {
 
 function handleLiveSync() {
   if (document.visibilityState !== 'visible') return
-  store.fetchResponses(route.params.id)
-  store.fetchMeeting(route.params.id)
+  store.fetchResponses(route.params.id, { background: true })
+  store.fetchMeeting(route.params.id, { background: true })
 }
 
 function openSheet(date) {

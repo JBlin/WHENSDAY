@@ -280,9 +280,13 @@ export const useMeetingStore = defineStore('meeting', () => {
     return createUserFacingError()
   }
 
-  async function fetchMeeting(id) {
-    loading.value = true
-    error.value = null
+  async function fetchMeeting(id, options = {}) {
+    const { background = false } = options
+
+    if (!background) {
+      loading.value = true
+      error.value = null
+    }
 
     try {
       assertSupabaseConfigured()
@@ -300,15 +304,25 @@ export const useMeetingStore = defineStore('meeting', () => {
       return meeting.value
     } catch (err) {
       logSupabaseError('failed to fetch meeting', err)
-      error.value = buildSupabaseError(err).message
-      return null
+      if (!background) {
+        error.value = buildSupabaseError(err).message
+        return null
+      }
+
+      return meeting.value
     } finally {
-      loading.value = false
+      if (!background) {
+        loading.value = false
+      }
     }
   }
 
-  async function fetchResponses(meetingId) {
-    error.value = null
+  async function fetchResponses(meetingId, options = {}) {
+    const { background = false } = options
+
+    if (!background) {
+      error.value = null
+    }
 
     try {
       assertSupabaseConfigured()
@@ -325,9 +339,13 @@ export const useMeetingStore = defineStore('meeting', () => {
       return responses.value
     } catch (err) {
       logSupabaseError('failed to fetch responses', err)
-      error.value = buildSupabaseError(err).message
-      responses.value = []
-      return []
+      if (!background) {
+        error.value = buildSupabaseError(err).message
+        responses.value = []
+        return []
+      }
+
+      return responses.value
     }
   }
 

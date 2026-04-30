@@ -448,14 +448,14 @@ function subscribeRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'responses', filter: `meeting_id=eq.${route.params.id}` },
       () => {
-        store.fetchResponses(route.params.id)
+        store.fetchResponses(route.params.id, { background: true })
       }
     )
     .on(
       'postgres_changes',
       { event: '*', schema: 'public', table: 'meetings', filter: `id=eq.${route.params.id}` },
       () => {
-        store.fetchMeeting(route.params.id)
+        store.fetchMeeting(route.params.id, { background: true })
       }
     )
     .subscribe()
@@ -480,8 +480,8 @@ function stopLiveSync() {
 
 function handleLiveSync() {
   if (document.visibilityState !== 'visible') return
-  store.fetchResponses(route.params.id)
-  store.fetchMeeting(route.params.id)
+  store.fetchResponses(route.params.id, { background: true })
+  store.fetchMeeting(route.params.id, { background: true })
 }
 
 function showToast(message, type = 'success') {
