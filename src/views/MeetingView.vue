@@ -408,16 +408,35 @@ watch(
         const regionId = store.meeting?.region?.id
         const grid = regionId ? getShortForecastGrid(regionId) : null
 
-        const [payload, shortItems] = await Promise.all([
+        const [mediumResult, shortResult] = await Promise.allSettled([
           fetchForecast({ type, regId: type === 'weather' ? weatherRegionCode : temperatureRegionCode }),
           grid ? fetchShortForecast(grid.nx, grid.ny) : Promise.resolve([]),
         ])
 
         if (requestId !== forecastRequestId) return
 
-        const mediumItems = Array.isArray(payload?.items) ? payload.items : []
-        const merged = mergeShortAndMedium(shortItems, mediumItems)
-        const message = payload?.message || ''
+        const mediumPayload = mediumResult.status === 'fulfilled' ? mediumResult.value : null
+        const shortItems = shortResult.status === 'fulfilled' ? shortResult.value : []
+
+        if (mediumResult.status === 'rejected') {
+          console.warn('[WHENSDAY] medium forecast request failed', mediumResult.reason)
+        }
+
+        if (shortResult.status === 'rejected') {
+          console.warn('[WHENSDAY] short forecast request failed', shortResult.reason)
+        }
+
+        if (!mediumPayload && !shortItems.length) {
+          throw mediumResult.status === 'rejected'
+            ? mediumResult.reason
+            : shortResult.status === 'rejected'
+              ? shortResult.reason
+              : new Error('Forecast data is unavailable.')
+        }
+
+        const mediumItems = Array.isArray(mediumPayload?.items) ? mediumPayload.items : []
+        const merged = mediumItems.length ? mergeShortAndMedium(shortItems, mediumItems) : shortItems
+        const message = mediumPayload?.message || ''
         forecastCache.set(cacheKey, { items: merged, detailItems: [], message })
         forecastItems.value = merged
         fishingItems.value = []

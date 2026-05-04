@@ -1,18 +1,12 @@
 <template>
   <div class="min-h-screen flex flex-col" style="background: linear-gradient(160deg, #ede9fe 0%, #e0e7ff 45%, #f8f8ff 100%)">
-    <div class="px-5 pt-5">
-      <div class="flex items-center gap-1">
-        <span class="font-brand text-base font-black tracking-widest text-primary tracking-tight">WHENSDAY</span>
-        <img src="../img/calendar.svg" class="h-4 w-4 uppercase" alt="" />
+    <div class="flex flex-col items-center px-6 pb-8 pt-10 text-center">
+      <div class="flex items-center justify-center gap-2">
+        <span class="font-brand text-[28px] font-black tracking-[0.24em] text-primary">WHENSDAY</span>
+        <img src="../img/calendar.svg" class="h-6 w-6 -translate-y-1 uppercase" alt="" />
       </div>
-    </div>
-
-    <div class="flex flex-col items-center px-6 pb-10 pt-10 text-center">
-      <p class="font-brand text-[22px] font-bold text-[#4338ca] leading-tight tracking-normal">
-        일정 조율, 링크 하나로 끝내세요
-      </p>
-      <p class="mt-3 text-[14px] text-gray-500 leading-[1.4]">
-        가능한 날짜를 모아<br />가장 적합한 날을 한눈에 확인할 수 있어요.
+      <p class="mt-3 text-[14px] text-gray-500 leading-[1.5]">
+        "난 아무때나 돼" 금지❌, 진짜 되는 날만 찍으셈 🎯
       </p>
     </div>
 
@@ -26,7 +20,7 @@
             v-model="title"
             type="text"
             maxlength="50"
-            placeholder="예: 강남 저녁 약속"
+            placeholder="예: 늘 가던 그곳, 늘 먹던 걸로"
             class="h-12 w-full rounded-btn border border-gray-200 bg-gray-50 px-4 text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
             required
           />
@@ -121,7 +115,7 @@
               </p>
               <p class="mt-0.5 text-xs text-gray-400">{{ dateRangeHint }}</p>
             </div>
-            <span class="shrink-0 rounded-full bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary">
+            <span class="shrink-0 rounded-[8px] bg-primary-light px-2.5 py-1.5 text-xs font-semibold text-primary">
               선택
             </span>
           </button>
