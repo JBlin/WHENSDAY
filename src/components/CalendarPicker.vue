@@ -31,6 +31,13 @@
           <span v-if="isSelected(day.date) && day.inRange" class="absolute inset-0 flex items-center justify-center">
             <span class="flex h-10 w-10 flex-col items-center justify-center rounded-lg bg-green-500 px-0.5 text-white">
               <span class="text-sm font-semibold leading-none">{{ day.num }}</span>
+              <img
+                v-if="weatherIcons[day.date]"
+                :src="weatherIcons[day.date]"
+                alt=""
+                aria-hidden="true"
+                class="mt-1 h-3.5 w-3.5 object-contain"
+              />
               <span v-if="tideLabels[day.date]" class="mt-1 text-[9px] font-medium leading-none text-white/90 tide-label">
                 {{ tideLabels[day.date] }}
               </span>
@@ -42,6 +49,13 @@
             class="flex flex-col items-center justify-center px-0.5"
           >
             <span class="leading-none">{{ day.num }}</span>
+            <img
+              v-if="weatherIcons[day.date]"
+              :src="weatherIcons[day.date]"
+              alt=""
+              aria-hidden="true"
+              class="mt-1 h-3.5 w-3.5 object-contain"
+            />
             <span
               v-if="tideLabels[day.date]"
               class="mt-1 text-[9px] font-medium leading-none text-gray-400 tide-label"
@@ -63,6 +77,7 @@ const props = defineProps({
   dateTo: { type: String, required: true },
   modelValue: { type: Array, default: () => [] },
   tideLabels: { type: Object, default: () => ({}) },
+  weatherIcons: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['update:modelValue'])

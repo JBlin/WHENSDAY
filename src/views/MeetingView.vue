@@ -114,6 +114,7 @@
             :date-from="store.meeting.date_from"
             :date-to="store.meeting.date_to"
             :tide-labels="calendarTideLabels"
+            :weather-icons="calendarWeatherIcons"
           />
           <CalendarInfoList
             :selected-type="selectedInfoType"
@@ -178,6 +179,7 @@ import {
   getClosestRecommendedDate,
   hasNoOverlap,
 } from '../lib/meetingUtils.js'
+import { buildWeatherIconMap } from '../lib/weatherIcons.js'
 import {
   getStoredParticipantName,
   hasVotedForMeeting,
@@ -309,6 +311,9 @@ const showTideLimitMessage = computed(
 )
 const calendarTideLabels = computed(() =>
   selectedInfoType.value === 'sea' && seaAvailable.value ? buildTideLabelMap(visibleTideRows.value) : {}
+)
+const calendarWeatherIcons = computed(() =>
+  selectedInfoType.value === 'weather' ? buildWeatherIconMap(visibleForecastItems.value) : {}
 )
 
 let realtimeChannel = null
